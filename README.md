@@ -13,7 +13,7 @@
 <!-- Beautiful Badges -->
 <p align="center">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white">
-  <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%2010/11-0078D4?style=for-the-badge&logo=windows&logoColor=white">
+  <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-0078D4?style=for-the-badge&logo=windows&logoColor=white">
   <img alt="AI Powered" src="https://img.shields.io/badge/AI-Powered-FF6B35?style=for-the-badge&logo=openai&logoColor=white">
   <img alt="Voice Control" src="https://img.shields.io/badge/Voice-Controlled-green?style=for-the-badge&logo=microphone&logoColor=white">
 </p>
@@ -41,7 +41,7 @@
 
 ## 🎆 **Meet SAM v3**
 
-**SAM v3** is your **intelligent voice-controlled Windows assistant** that seamlessly integrates with your desktop environment. Say goodbye to manual system controls and hello to natural language automation!
+**SAM v3** is your **intelligent voice-controlled desktop assistant** that seamlessly integrates with your Windows and macOS environment. Say goodbye to manual system controls and hello to natural language automation!
 
 > 🎤 *"Hey SAM, set volume to 50% and switch to extend display"* → **Done instantly!**
 
@@ -123,10 +123,11 @@
 <br>
 
 **Prerequisites:**
-- ✅ Windows 10/11 (Administrator privileges recommended)
+- ✅ Windows 10/11 or macOS 12+ (Monterey or later)
 - ✅ Python 3.10+ installed
 - ✅ Microphone access enabled
 - ✅ Internet connection (for AI features)
+- ✅ macOS only: Homebrew installed (for brightness control)
 
 **Step-by-Step Installation:**
 
@@ -143,6 +144,8 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 # Windows Command Prompt:
 .venv\Scripts\activate.bat
+# macOS/Linux:
+source .venv/bin/activate
 
 # 4️⃣ Install dependencies
 pip install -r requirements.txt
@@ -484,6 +487,28 @@ UI_PREFERENCES = {
 1. SAM works with defaults - no action needed
 2. Create custom files if you want personalization
 3. Use examples in Configuration section
+```
+
+### macOS-Specific Issues
+```bash
+# Problem: Brightness control not working
+# Solution: Install brightness CLI
+brew install brightness
+
+# Problem: Permission denied for system controls
+# Solution: Grant Terminal/Python accessibility access
+1. Open System Settings → Privacy & Security → Accessibility
+2. Add Terminal.app and/or Python to the allowed list
+
+# Problem: TTS voice sounds robotic
+# Solution: Download enhanced voices
+1. Open System Settings → Accessibility → Spoken Content
+2. Click "System Voice" → Manage Voices
+3. Download "Samantha" or "Alex" for better quality
+
+# Problem: Audio control not working
+# Solution: SAM uses osascript which requires no special permissions
+# If issues persist, check sound preferences in System Settings
 ```
 
 </details>

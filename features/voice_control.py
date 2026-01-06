@@ -65,11 +65,36 @@ class VoiceController:
         self.register_default_commands()
         
     def setup_tts(self):
-        """Setup text-to-speech engine"""
+        """Setup text-to-speech engine with platform-aware voice selection."""
         try:
             voices = self.tts_engine.getProperty('voices')
-            if voices and len(voices) > VOICE_CONFIG["voice_id"]:
+            if not voices:
+                self.logger.warning("No TTS voices available")
+                return
+            
+            # Try to set voice by config index first
+            if len(voices) > VOICE_CONFIG["voice_id"]:
                 self.tts_engine.setProperty('voice', voices[VOICE_CONFIG["voice_id"]].id)
+            
+            # Platform-specific voice selection for better quality
+            import platform
+            if platform.system() == "Darwin":
+                # macOS: Prefer Samantha (natural female) or Alex (natural male)
+                preferred_voices = ["samantha", "alex", "daniel", "karen"]
+            else:
+                # Windows: Prefer David or Zira
+                preferred_voices = ["david", "zira", "mark"]
+            
+            # Find and set a preferred voice
+            for pref in preferred_voices:
+                for voice in voices:
+                    if pref in voice.name.lower() or pref in voice.id.lower():
+                        self.tts_engine.setProperty('voice', voice.id)
+                        self.logger.info(f"TTS voice set to: {voice.name}")
+                        break
+                else:
+                    continue
+                break
             
             self.tts_engine.setProperty('rate', VOICE_CONFIG["tts_rate"])
             self.tts_engine.setProperty('volume', VOICE_CONFIG["tts_volume"])

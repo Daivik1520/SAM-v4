@@ -1,0 +1,29 @@
+/Users/daivikreddy/Desktop/SAM-v3/SAM.py:9413: SyntaxWarning: invalid escape sequence '\ '
+  'A': ["  /\  ", " /  \ ", "/____\\", "/    \\", "/    \\"],
+/Users/daivikreddy/Desktop/SAM-v3/SAM.py:9413: SyntaxWarning: invalid escape sequence '\ '
+  'A': ["  /\  ", " /  \ ", "/____\\", "/    \\", "/    \\"],
+/Users/daivikreddy/Desktop/SAM-v3/.venv/lib/python3.13/site-packages/pygame/pkgdata.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import resource_stream, resource_exists
+2026-01-04 19:12:02,814 [INFO] Logging initialized
+2026-01-04 19:12:03,702 [INFO] TTS engine initialized
+2026-01-04 19:12:03,715 [INFO] Microphone available and initialized
+2026-01-04 19:12:04,479 [WARNING] Wake word detection requires Picovoice access key. Get free key at https://console.picovoice.ai/
+2026-01-04 19:12:04,479 [INFO] System tray components initialized (will start after main window)
+pygame 2.6.1 (SDL 2.28.4, Python 3.13.5)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Warning: Resource file not found: /Users/daivikreddy/Desktop/SAM-v3/user_commands.json
+[INFO] Wake word detection requires Picovoice access key.
+[INFO] Get your free access key at: https://console.picovoice.ai/
+Traceback (most recent call last):
+  File "/Users/daivikreddy/Desktop/SAM-v3/SAM.py", line 9884, in <module>
+    app = EnhancedJarvisGUI()
+  File "/Users/daivikreddy/Desktop/SAM-v3/SAM.py", line 1704, in __init__
+    self.show_main_ui()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/Users/daivikreddy/Desktop/SAM-v3/SAM.py", line 1716, in show_main_ui
+    self.setup_input_area()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/daivikreddy/Desktop/SAM-v3/SAM.py", line 3696, in setup_input_area
+    command=self.open_file_browser
+            ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'EnhancedJarvisGUI' object has no attribute 'open_file_browser'

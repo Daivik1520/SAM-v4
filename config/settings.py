@@ -41,18 +41,51 @@ VOICE_CONFIG = {
     "voice_id": 0
 }
 
+# Wake Word Detection Configuration (Picovoice Porcupine)
+# Get free access key at: https://console.picovoice.ai/
+WAKE_WORD_CONFIG = {
+    "enabled": True,
+    # Built-in keywords (free): alexa, americano, blueberry, bumblebee, computer,
+    # grapefruit, grasshopper, hey google, hey siri, jarvis, ok google, picovoice,
+    # porcupine, terminator
+    "keywords": ["jarvis"],  # Using 'jarvis' - sounds like an AI assistant
+    "sensitivity": 0.5,  # 0.0-1.0, higher = more sensitive but more false positives
+    "access_key": "",  # Your Picovoice access key (get free at https://console.picovoice.ai/)
+}
+
+# System Tray Configuration
+TRAY_CONFIG = {
+    "enabled": True,  # Enable system tray icon
+    "minimize_to_tray": True,  # Minimize to tray instead of taskbar
+    "start_minimized": False,  # Start app minimized to tray
+    "hotkey": "ctrl+shift+s",  # Global hotkey to show/hide SAM (Cmd+Shift+S on macOS)
+    "show_notifications": True,  # Show notifications from tray
+    "mini_mode_width": 400,  # Width of mini floating window
+    "mini_mode_height": 80,  # Height of mini floating window
+}
+
+
 # AI Configuration
 AI_CONFIG = {
     # Provider can be: "gemini" (Google), "openai", etc.
     "provider": "gemini",
     "model_name": "gemini-1.5-flash",
     "max_tokens": 2000,
-    "temperature": 0.7,
+    "temperature": 0.8,  # Slightly higher for more personality
     "context_window": 10,
     "enable_rag": True,
     "enable_memory": True,
-    # Style/persona for more human-like responses
-    "personality": "You are SAM, a friendly, empathetic, and highly capable personal AI assistant. Speak naturally like a human, be concise unless asked for details, and adapt to the user's preferences."
+    # JARVIS-inspired personality - witty, intelligent, efficient
+    "personality": """You are SAM, an AI assistant inspired by JARVIS from Iron Man. Your characteristics:
+- Speak with subtle wit and dry humor, but never be sarcastic to the point of rudeness
+- Be concise and efficient - give direct answers, don't ramble
+- Show intelligence and competence in every response
+- Address the user respectfully, occasionally with light formality ("Sir", "Indeed", "Right away")
+- Be proactive - anticipate needs and offer relevant suggestions
+- Keep responses SHORT and punchy like a real assistant would speak
+- Use occasional British-isms but stay natural
+- Never break character or mention being an AI unless asked directly
+- Sound confident and capable, like you've done this a thousand times"""
 }
 
 # Computer Vision Configuration

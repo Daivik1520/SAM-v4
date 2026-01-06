@@ -31,11 +31,21 @@ import json
 import shutil
 import math
 from typing import Optional, Dict, List
-from features.web_automation import YouTubeAutomation, BrowserController, SystemLauncher
+from features.web_automation import YouTubeAutomation, BrowserController, SystemLauncher, WhatsAppAutomation
 try:
     from serpapi import GoogleSearch  # Optional dependency
 except Exception:
     GoogleSearch = None
+
+# System Tray Support
+try:
+    from features.system_tray import TrayManager, HotkeyManager, MiniFloatingWindow
+    from config.settings import TRAY_CONFIG
+    TRAY_AVAILABLE = True
+except ImportError as e:
+    TRAY_AVAILABLE = False
+    TRAY_CONFIG = {"enabled": False}
+    print(f"[INFO] System tray not available: {e}. Install with: pip install pystray pynput")
 
 # Camera and AI Vision imports
 try:
@@ -85,6 +95,14 @@ try:
 except ImportError:
     STL_AVAILABLE = False
     print("[INFO] Numpy-STL not available. Install with: pip install numpy-stl")
+
+# OCR (Optical Character Recognition) for screen analysis
+try:
+    import pytesseract
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
+    print("[INFO] pytesseract not available. Install with: pip install pytesseract")
 
 # --- API Keys ---
 SERPAPI_KEY = "c386502a9f4115666d1120c7dcdcc33cc0bae6204cdbdf40fe9538029bbb8abd"
@@ -169,7 +187,71 @@ THEMES = {
         "hologram": "#0a0a0a", "glass": "#1a1a1a",
         "shadow": "#00ff41", "border_glow": "#00ff41"
     }
+    ,
+    "pro_slate": {
+        "bg": "#0f1115", "fg": "#e5e7eb", "entrybg": "#111317", "textfg": "#e5e7eb",
+        "sysfg": "#64748b", "btnbg": "#111317", "btnfg": "#e5e7eb", "btnactive": "#1a1f29",
+        "subfg": "#9ca3af", "scrolledbg": "#0f1115", "inputfg": "#e5e7eb",
+        "accent": "#4f46e5", "success": "#22c55e", "warning": "#f59e0b", "error": "#ef4444",
+        "accent_hover": "#4338ca", "success_hover": "#16a34a", "error_hover": "#dc2626",
+        "btnbg_hover": "#1a1f29", "sidebar": "#0e1014", "card": "#12141a", "hover": "#1a1f29",
+        "user_bubble": "#4f46e5", "assistant_bubble": "#12141a", "system_bubble": "#1a1f29",
+        "chat_bg": "#0f1115", "input_border": "#1a1f29", "typing_indicator": "#4f46e5",
+        "gradient_start": "#1f2937", "gradient_end": "#0f172a", "glow": "#3b82f6",
+        "panel_bg": "#0f1115", "progress_bg": "#111317", "progress_fill": "#4f46e5",
+        "network_bg": "#0f1115", "temporal_bg": "#0f1115", "visual_bg": "#0f1115",
+        "ai_gradient": "linear-gradient(135deg, #1f2937 0%, #0f172a 50%, #0b1220 100%)",
+        "neon_glow": "#3b82f6", "matrix_green": "#22c55e", "cyber_blue": "#3b82f6",
+        "hologram": "#0f1115", "glass": "#0e1014",
+        "shadow": "#1f2937", "border_glow": "#4f46e5"
+    },
+    # Ultra Modern - Sleek glassmorphism theme with purple/violet accents
+    "ultra_modern": {
+        "bg": "#09090b", "fg": "#fafafa", "entrybg": "#18181b", "textfg": "#fafafa",
+        "sysfg": "#a1a1aa", "btnbg": "#27272a", "btnfg": "#fafafa", "btnactive": "#3f3f46",
+        "subfg": "#71717a", "scrolledbg": "#09090b", "inputfg": "#fafafa",
+        "accent": "#8b5cf6", "success": "#10b981", "warning": "#f59e0b", "error": "#ef4444",
+        "accent_hover": "#7c3aed", "success_hover": "#059669", "error_hover": "#dc2626",
+        "btnbg_hover": "#3f3f46", "sidebar": "#0c0c0e", "card": "#18181b", "hover": "#27272a",
+        "user_bubble": "#7c3aed", "assistant_bubble": "#18181b", "system_bubble": "#27272a",
+        "chat_bg": "#09090b", "input_border": "#3f3f46", "typing_indicator": "#8b5cf6",
+        "gradient_start": "#8b5cf6", "gradient_end": "#6366f1", "glow": "#a78bfa",
+        "panel_bg": "#0c0c0e", "progress_bg": "#18181b", "progress_fill": "#8b5cf6",
+        "network_bg": "#0c0c0e", "temporal_bg": "#0c0c0e", "visual_bg": "#0c0c0e",
+        "ai_gradient": "linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #4f46e5 100%)",
+        "neon_glow": "#a78bfa", "matrix_green": "#10b981", "cyber_blue": "#6366f1",
+        "hologram": "#09090b", "glass": "#18181b",
+        "shadow": "#8b5cf6", "border_glow": "#8b5cf6",
+        # Modern additions
+        "glass_bg": "rgba(24, 24, 27, 0.8)", "glass_border": "#3f3f46",
+        "send_gradient_start": "#8b5cf6", "send_gradient_end": "#ec4899",
+        "avatar_glow": "#a78bfa", "header_accent": "#c4b5fd"
+    },
+    # Core System - Bhavesh Pandey futuristic style with particle orb
+    "core_system": {
+        "bg": "#0a0a0a", "fg": "#ffffff", "entrybg": "#0d1117", "textfg": "#ffffff",
+        "sysfg": "#0ea5e9", "btnbg": "#0d1117", "btnfg": "#ffffff", "btnactive": "#1a2332",
+        "subfg": "#9ca3af", "scrolledbg": "#0a0a0a", "inputfg": "#ffffff",
+        "accent": "#0ea5e9", "success": "#22c55e", "warning": "#f97316", "error": "#dc2626",
+        "accent_hover": "#0284c7", "success_hover": "#16a34a", "error_hover": "#b91c1c",
+        "btnbg_hover": "#1a2332", "sidebar": "#0d1117", "card": "#0d1117", "hover": "#1a2332",
+        "user_bubble": "#0ea5e9", "assistant_bubble": "#1a1f2e", "system_bubble": "#0d1117",
+        "chat_bg": "#0a0a0a", "input_border": "#1e3a5f", "typing_indicator": "#0ea5e9",
+        "gradient_start": "#0ea5e9", "gradient_end": "#0284c7", "glow": "#0ea5e9",
+        "panel_bg": "#0d1117", "progress_bg": "#1a2332", "progress_fill": "#0ea5e9",
+        "progress_orange": "#f97316", "progress_cyan": "#06b6d4",
+        "network_bg": "#0d1117", "temporal_bg": "#0d1117", "visual_bg": "#0d1117",
+        "ai_gradient": "linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #0369a1 100%)",
+        "neon_glow": "#0ea5e9", "matrix_green": "#22c55e", "cyber_blue": "#0ea5e9",
+        "hologram": "#0a0a0a", "glass": "#0d1117",
+        "shadow": "#0ea5e9", "border_glow": "#1e3a5f",
+        "orb_particle": "#d4a574", "orb_particle_bright": "#fbbf24",
+        "end_button": "#dc2626", "end_button_hover": "#b91c1c",
+        "nav_active": "#0ea5e9", "nav_inactive": "#4b5563",
+        "glass_border": "#1e3a5f", "header_accent": "#0ea5e9"
+    }
 }
+
 
 class AnimatedSystemPanel(ctk.CTkFrame):
     """Enhanced system panel with futuristic design matching the video style."""
@@ -504,154 +586,130 @@ class AnimatedSystemPanel(ctk.CTkFrame):
         self.animation_running = False
 
 class EnhancedChatBubble(ctk.CTkFrame):
-    """Modern AI chat bubble with futuristic design and animations."""
+    """Modern AI chat bubble with Core System design."""
     
     def __init__(self, parent, message, sender="user", timestamp=None, **kwargs):
-        colors = THEMES.get("copilot_dark", THEMES["copilot_dark"])
+        # Try to get core_system theme, fallback to copilot_dark
+        colors = THEMES.get("core_system", THEMES.get("copilot_dark", THEMES["copilot_dark"]))
         
         # Determine bubble styling based on sender
         if sender.lower() == "user":
-            fg_color = colors["user_bubble"]
+            fg_color = colors["user_bubble"]  # Teal/cyan
             text_color = "#ffffff"
             anchor = "e"
-            padx = (120, 20)
-            icon = "👤"
-            border_color = colors["border_glow"]
+            padx = (40, 8)  # Push to right
             sender_name = "YOU"
+            sender_color = colors.get("progress_cyan", "#06b6d4")
         elif sender.lower() in ["assistant", "jarvis", "sam"]:
-            fg_color = colors["assistant_bubble"]
+            fg_color = colors["assistant_bubble"]  # Dark slate
             text_color = colors["fg"]
             anchor = "w"
-            padx = (20, 120)
-            icon = "🧠"
-            border_color = colors["border_glow"]
-            sender_name = "SAM AI"
+            padx = (8, 40)  # Push to left
+            sender_name = "SAM"
+            sender_color = colors["accent"]
         else:  # system
             fg_color = colors["system_bubble"]
             text_color = colors["subfg"]
             anchor = "center"
-            padx = (50, 50)
-            icon = "⚙️"
-            border_color = colors["subfg"]
-            sender_name = sender.title()
+            padx = (20, 20)
+            sender_name = "SYSTEM"
+            sender_color = colors["subfg"]
         
-        # Create modern bubble with glass effect and glow
-        super().__init__(
-            parent, 
-            fg_color=fg_color, 
-            corner_radius=20,
-            border_width=2,
-            border_color=border_color,
-            **kwargs
-        )
+        # Create container frame (for label + bubble)
+        super().__init__(parent, fg_color="transparent", **kwargs)
         
-        # Create message container with enhanced padding
-        msg_frame = ctk.CTkFrame(self, fg_color="transparent")
-        msg_frame.pack(fill="both", expand=True, padx=20, pady=16)
+        # Sender label above bubble
+        label_frame = ctk.CTkFrame(self, fg_color="transparent")
+        label_frame.pack(fill="x", pady=(0, 2))
         
-        # Modern header with AI styling
-        header_frame = ctk.CTkFrame(msg_frame, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(0, 12))
-        
-        # Icon and sender name with modern styling
-        sender_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        if anchor == "e":
-            sender_frame.pack(side="right")
-        else:
-            sender_frame.pack(side="left")
-        
-        # AI brain icon for SAM
-        if sender.lower() in ["assistant", "jarvis", "sam"]:
-            icon_label = ctk.CTkLabel(
-                sender_frame, 
-                text=icon, 
-                font=("Segoe UI", 18),
-                text_color=colors["accent"]
-            )
-            icon_label.pack(side="left", padx=(0, 10))
-            
-            # AI status indicator
-            status_dot = ctk.CTkLabel(
-                sender_frame,
-                text="●",
-                font=("Segoe UI", 12),
-                text_color=colors["success"]
-            )
-            status_dot.pack(side="left", padx=(0, 8))
-        else:
-            icon_label = ctk.CTkLabel(
-                sender_frame, 
-                text=icon, 
-                font=("Segoe UI", 16)
-            )
-            icon_label.pack(side="left", padx=(0, 10))
-        
-        # Modern sender label
         sender_label = ctk.CTkLabel(
-            sender_frame, 
-            text=sender_name, 
-            font=("Segoe UI", 12, "bold"),
-            text_color=colors["accent"] if sender.lower() in ["assistant", "jarvis", "sam"] else text_color
+            label_frame,
+            text=sender_name,
+            font=("Consolas", 9, "bold"),
+            text_color=sender_color
         )
-        sender_label.pack(side="left")
+        if anchor == "e":
+            sender_label.pack(side="right", padx=4)
+        elif anchor == "w":
+            sender_label.pack(side="left", padx=4)
+        else:
+            sender_label.pack(anchor="center")
         
-        # Timestamp with modern styling
-        if timestamp:
-            time_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-            if anchor == "e":
-                time_frame.pack(side="left")
-            else:
-                time_frame.pack(side="right")
-            
-            time_label = ctk.CTkLabel(
-                time_frame,
-                text=f"⏰ {timestamp}",
-                text_color=colors["subfg"],
-                font=("Segoe UI", 10),
-            )
-            time_label.pack()
+        # The actual bubble
+        bubble = ctk.CTkFrame(
+            self,
+            fg_color=fg_color,
+            corner_radius=12,
+            border_width=1,
+            border_color=colors.get("border_glow", colors["input_border"])
+        )
         
-        # Enhanced message text with code highlighting
+        if anchor == "e":
+            bubble.pack(fill="x", padx=padx, anchor="e")
+        elif anchor == "w":
+            bubble.pack(fill="x", padx=padx, anchor="w")
+        else:
+            bubble.pack(fill="x", padx=padx)
+        
+        # Message container
+        msg_frame = ctk.CTkFrame(bubble, fg_color="transparent")
+        msg_frame.pack(fill="both", expand=True, padx=12, pady=8)
+        
+        # Message text
         message_parts = self._parse_message(message, colors)
         
         for part in message_parts:
             if part["type"] == "code":
-                # Modern code block styling
                 code_frame = ctk.CTkFrame(
                     msg_frame, 
                     fg_color=colors["card"], 
-                    corner_radius=12,
+                    corner_radius=8,
                     border_width=1,
                     border_color=colors["input_border"]
                 )
-                code_frame.pack(fill="x", pady=6)
+                code_frame.pack(fill="x", pady=4)
                 
                 code_label = ctk.CTkLabel(
                     code_frame,
                     text=part["content"],
-                    font=("Consolas", 11),
+                    font=("Consolas", 10),
                     text_color=colors["accent"],
-                    wraplength=420,
+                    wraplength=250,
                     justify="left"
                 )
-                code_label.pack(padx=16, pady=12)
+                code_label.pack(padx=10, pady=6)
             else:
-                # Regular text with enhanced formatting
                 text_label = ctk.CTkLabel(
                     msg_frame,
                     text=part["content"],
                     text_color=text_color,
-                    font=("Segoe UI", 13),
-                    wraplength=450,
+                    font=("Segoe UI", 11),
+                    wraplength=250,
                     justify="left"
                 )
-                text_label.pack(anchor=anchor, fill="x", pady=2)
+                text_label.pack(anchor="w" if anchor == "w" else "e", fill="x", pady=1)
         
-        # Pack the bubble with enhanced spacing
-        self.pack(fill="x", padx=padx, pady=8)
+        # Timestamp at bottom
+        if timestamp:
+            time_label = ctk.CTkLabel(
+                msg_frame,
+                text=timestamp,
+                font=("Consolas", 8),
+                text_color=colors["subfg"]
+            )
+            if anchor == "e":
+                time_label.pack(anchor="e", pady=(4, 0))
+            else:
+                time_label.pack(anchor="w", pady=(4, 0))
         
-        # Add entrance animation
+        # Pack the whole bubble frame
+        self.pack(fill="x", pady=4)
+        
+        # Store for animation
+        self.bubble = bubble
+        self.original_fg_color = fg_color
         self.animate_entrance()
+
     
     def _parse_message(self, message, colors):
         """Parse message for code blocks and special formatting."""
@@ -696,20 +754,19 @@ class EnhancedChatBubble(ctk.CTkFrame):
     
     def animate_entrance(self):
         """Animate the bubble entrance."""
-        # Start with 0 opacity and scale
-        self.configure(fg_color="transparent")
+        if not hasattr(self, 'bubble'):
+            return
         
-        def fade_in(alpha=0.0):
-            if alpha < 1.0:
-                colors = THEMES.get("copilot_dark", THEMES["copilot_dark"])
-                if hasattr(self, 'original_fg_color'):
-                    # Gradually restore original color
-                    self.configure(fg_color=self.original_fg_color)
-                self.after(50, lambda: fade_in(alpha + 0.1))
+        # Simple fade-in effect
+        def fade_in(step=0):
+            if step < 5 and hasattr(self, 'bubble'):
+                try:
+                    self.bubble.configure(fg_color=self.original_fg_color)
+                except:
+                    pass
         
-        # Store original color and start animation
-        self.original_fg_color = self.cget("fg_color")
-        fade_in()
+        # Start animation
+        self.after(50, lambda: fade_in(1))
 
 class VoiceVisualizer(ctk.CTkFrame):
     """Voice activity visualizer with animated bars."""
@@ -1039,7 +1096,208 @@ class ModernButton(ctk.CTkButton):
         )
         self.original_fg_color = colors["accent"]
 
+
+class CoreSystemOrb(ctk.CTkFrame):
+    """Animated particle orb visualization for Core System UI with realistic AI speaking animation."""
+    
+    def __init__(self, parent, theme="core_system", size=300, **kwargs):
+        colors = THEMES.get(theme, THEMES["core_system"])
+        super().__init__(parent, fg_color="transparent", **kwargs)
+        
+        self.theme = theme
+        self.colors = colors
+        self.size = size
+        self.particles = []
+        self.animation_running = False
+        self.voice_active = False
+        self.pulse_phase = 0
+        self.global_time = 0
+        self.intensity = 0.0  # Smooth transition for voice activation
+        
+        # Create canvas for particle rendering
+        self.canvas = tk.Canvas(
+            self,
+            width=size,
+            height=size,
+            bg=colors["bg"],
+            highlightthickness=0
+        )
+        self.canvas.pack(expand=True)
+        
+        # Initialize particles
+        self.create_particles()
+        
+    def create_particles(self):
+        """Create particle system for the orb."""
+        import random
+        
+        center_x = self.size // 2
+        center_y = self.size // 2
+        radius = self.size // 2 - 20
+        
+        # Create multiple layers of particles
+        num_particles = 500  # More particles for denser effect
+        
+        for i in range(num_particles):
+            # Random position within sphere
+            angle = random.uniform(0, 2 * math.pi)
+            r = random.uniform(0, radius) * random.uniform(0.3, 1.0)  # Denser in center
+            
+            x = center_x + r * math.cos(angle)
+            y = center_y + r * math.sin(angle)
+            
+            # Particle properties
+            particle_size = random.uniform(1, 4)
+            speed = random.uniform(0.3, 1.2)
+            phase = random.uniform(0, 2 * math.pi)
+            orbit_speed = random.uniform(0.01, 0.03)  # For orbital movement
+            
+            # Color variation (golden/amber tones with more variety)
+            colors_list = ["#d4a574", "#e8b886", "#fbbf24", "#f59e0b", "#c8956c", "#fcd34d", "#f97316"]
+            color = random.choice(colors_list)
+            
+            # Distance from center for scaling effects
+            dist_from_center = r / radius
+            
+            particle = {
+                "x": x,
+                "y": y,
+                "base_x": x,
+                "base_y": y,
+                "original_x": x,
+                "original_y": y,
+                "size": particle_size,
+                "base_size": particle_size,
+                "speed": speed,
+                "phase": phase,
+                "orbit_speed": orbit_speed,
+                "color": color,
+                "dist_from_center": dist_from_center,
+                "layer": random.choice(["inner", "middle", "outer"]),
+                "id": None
+            }
+            
+            # Draw particle
+            particle["id"] = self.canvas.create_oval(
+                x - particle_size, y - particle_size,
+                x + particle_size, y + particle_size,
+                fill=color,
+                outline=""
+            )
+            
+            self.particles.append(particle)
+    
+    def start_animation(self):
+        """Start the particle animation."""
+        self.animation_running = True
+        self.animate()
+    
+    def stop_animation(self):
+        """Stop the particle animation."""
+        self.animation_running = False
+    
+    def set_voice_active(self, active):
+        """Set voice activity state for enhanced animation."""
+        self.voice_active = active
+    
+    def animate(self):
+        """Animate particles with realistic AI speaking effect."""
+        if not self.animation_running:
+            return
+        
+        import random
+        
+        # Update global time
+        self.global_time += 0.05
+        self.pulse_phase += 0.15 if self.voice_active else 0.03
+        
+        # Smooth intensity transition
+        target_intensity = 1.0 if self.voice_active else 0.0
+        self.intensity += (target_intensity - self.intensity) * 0.1
+        
+        center_x = self.size // 2
+        center_y = self.size // 2
+        
+        # Pulsate scale when speaking (breathing effect)
+        pulse_scale = 1.0 + (math.sin(self.pulse_phase) * 0.15 * self.intensity)
+        secondary_pulse = 1.0 + (math.sin(self.pulse_phase * 1.7) * 0.08 * self.intensity)
+        
+        for particle in self.particles:
+            # Update phase
+            speed_multiplier = 1.0 + (self.intensity * 2.0)  # Faster when speaking
+            particle["phase"] += particle["speed"] * 0.1 * speed_multiplier
+            
+            # Calculate base position relative to center
+            dx = particle["original_x"] - center_x
+            dy = particle["original_y"] - center_y
+            
+            # Apply pulsating scale
+            layer_pulse = pulse_scale if particle["layer"] != "inner" else secondary_pulse
+            scaled_dx = dx * layer_pulse
+            scaled_dy = dy * layer_pulse
+            
+            # Orbital rotation when speaking
+            if self.intensity > 0.1:
+                orbit_angle = self.global_time * particle["orbit_speed"] * 20 * self.intensity
+                cos_a = math.cos(orbit_angle)
+                sin_a = math.sin(orbit_angle)
+                rotated_dx = scaled_dx * cos_a - scaled_dy * sin_a
+                rotated_dy = scaled_dx * sin_a + scaled_dy * cos_a
+                scaled_dx = rotated_dx
+                scaled_dy = rotated_dy
+            
+            # Wave movement (more dynamic when speaking)
+            wave_amplitude = 2.0 + (8.0 * self.intensity)
+            wave_freq = 1.0 + (0.5 * self.intensity)
+            offset_x = math.sin(particle["phase"] * wave_freq) * wave_amplitude
+            offset_y = math.cos(particle["phase"] * 0.7 * wave_freq) * wave_amplitude
+            
+            # Spiral effect when speaking
+            if self.intensity > 0.1:
+                spiral = math.sin(self.global_time * 3 + particle["dist_from_center"] * 10)
+                offset_x += spiral * 3 * self.intensity
+                offset_y += math.cos(self.global_time * 2.5 + particle["phase"]) * 3 * self.intensity
+            
+            new_x = center_x + scaled_dx + offset_x
+            new_y = center_y + scaled_dy + offset_y
+            
+            # Dynamic particle size when speaking
+            size_pulse = 1.0 + (math.sin(self.pulse_phase * 2 + particle["phase"]) * 0.4 * self.intensity)
+            size = particle["base_size"] * size_pulse
+            
+            # Update particle position
+            try:
+                self.canvas.coords(
+                    particle["id"],
+                    new_x - size, new_y - size,
+                    new_x + size, new_y + size
+                )
+            except Exception:
+                pass
+            
+            # Dynamic color changes when speaking
+            if self.intensity > 0.3:
+                if random.random() < 0.15 * self.intensity:
+                    # Bright flashing colors when speaking
+                    bright_colors = ["#fbbf24", "#fcd34d", "#fef3c7", "#fff7ed", "#ffedd5", "#fed7aa"]
+                    try:
+                        self.canvas.itemconfig(particle["id"], fill=random.choice(bright_colors))
+                    except Exception:
+                        pass
+            elif random.random() < 0.03:
+                # Occasionally restore original color
+                try:
+                    self.canvas.itemconfig(particle["id"], fill=particle["color"])
+                except Exception:
+                    pass
+        
+        # Schedule next frame (faster when speaking)
+        frame_delay = 25 if self.voice_active else 40
+        self.after(frame_delay, self.animate)
+
+
 class NaturalLanguageNavigator:
+
     """Modular natural language system navigator.
     Interprets high-level navigation requests and executes OS-level actions.
     """
@@ -1083,9 +1341,29 @@ class NaturalLanguageNavigator:
                     os.system(f"start {uri}")
                 return f"⚙️ Opening Settings{(' → ' + section) if section else ''}"
             elif self.os_name == 'darwin':
-                # macOS System Settings
-                subprocess.Popen(['open', '/System/Applications/System Settings.app'])
-                return "⚙️ Opening System Settings"
+                # macOS: Use URL schemes for instant deep links when available
+                pane_map = {
+                    'display': 'x-apple.systempreferences:com.apple.preference.displays',
+                    'sound': 'x-apple.systempreferences:com.apple.preference.sound',
+                    'wifi': 'x-apple.systempreferences:com.apple.preference.network',
+                    'bluetooth': 'x-apple.systempreferences:com.apple.preference.bluetooth',
+                    'network': 'x-apple.systempreferences:com.apple.preference.network',
+                    'battery': 'x-apple.systempreferences:com.apple.preference.battery',
+                    'keyboard': 'x-apple.systempreferences:com.apple.preference.keyboard',
+                    'trackpad': 'x-apple.systempreferences:com.apple.preference.trackpad',
+                    'mouse': 'x-apple.systempreferences:com.apple.preference.mouse',
+                    'privacy': 'x-apple.systempreferences:com.apple.preference.security',
+                }
+                try:
+                    if section and section in pane_map:
+                        subprocess.run(['open', pane_map[section]], check=False)
+                    else:
+                        subprocess.run(['open', '-a', 'System Settings'], check=False)
+                    # Bring to foreground quickly
+                    subprocess.run(['osascript', '-e', 'tell application "System Settings" to activate'], check=False)
+                except Exception:
+                    subprocess.Popen(['open', '/System/Applications/System Settings.app'])
+                return f"⚙️ Opening System Settings{(' → ' + section) if section else ''}"
             else:
                 # Linux: try gnome-control-center
                 subprocess.Popen(['gnome-control-center'])
@@ -1116,6 +1394,39 @@ class NaturalLanguageNavigator:
     def handle(self, text):
         """Parse text and execute navigation actions. Returns a status string."""
         cmd = text.lower().strip()
+
+        m = re.search(r"\bopen\s+(?:the\s+)?(file|document)\s+(.+)\b", cmd)
+        if m:
+            name = m.group(2).strip()
+            try:
+                return self.assistant.open_file_human_like(name, kind='file')
+            except Exception as e:
+                return f"❌ Unable to open file '{name}': {e}"
+
+        m = re.search(r"\bfind\s+(.+?)\s+and\s+open\b", cmd)
+        if m:
+            name = m.group(1).strip()
+            try:
+                return self.assistant.open_file_human_like(name, kind='file')
+            except Exception as e:
+                return f"❌ Unable to open file '{name}': {e}"
+
+        m = re.search(r"\bopen\s+(.+)\b", cmd)
+        if m:
+            raw = m.group(1).strip()
+            if any(ext for ext in [".", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".png", ".jpg", ".jpeg", ".gif", ".txt"] if ext in raw):
+                try:
+                    return self.assistant.open_file_human_like(raw, kind='file')
+                except Exception as e:
+                    return f"❌ Unable to open '{raw}': {e}"
+
+        m = re.search(r"\bopen\s+folder\s+(.+)\b", cmd)
+        if m:
+            name = m.group(1).strip()
+            try:
+                return self.assistant.open_file_human_like(name, kind='folder')
+            except Exception as e:
+                return f"❌ Unable to open folder '{name}': {e}"
 
         # Open known folders: "go to downloads", "open documents"
         m = re.search(r"\b(go to|open|show)\s+(downloads|documents|pictures|photos|music|videos|desktop)\b", cmd)
@@ -1279,10 +1590,13 @@ class MultiIntentPlanner:
         m = re.search(r"^play\s+(.+?)\s+youtube$", seg)
         if m:
             return f"play {m.group(1)} on youtube"
-        # Normalize 'open youtube and/an play <q>' → two steps
-        m = re.search(r"^open\s+youtube\s+(?:and|an)\s+play\s+(.+)$", seg)
+        
+        # Normalize 'open youtube/yt and/an play <q>' → single play command
+        # This prevents opening homepage first which wastes time and focus
+        m = re.search(r"^open\s+(?:youtube|yt)\s+(?:and|an)\s+play\s+(.+)$", seg)
         if m:
-            return f"open youtube and play {m.group(1)} on youtube"
+            return f"play {m.group(1)} on youtube"
+            
         # Normalize 'search about X' -> 'search X'
         m = re.search(r"^search\s+about\s+(.+)$", seg)
         if m:
@@ -1313,7 +1627,23 @@ class MultiIntentPlanner:
             return f"❌ Error executing step '{segment}': {e}"
 
     def execute(self, text):
-        steps = self._split_into_steps(text)
+        # Pre-process: consolidate "open youtube/yt and play" into a single play command
+        # This prevents splitting into [open youtube, play X]
+        consolidated = re.sub(
+            r"\bopen\s+(?:youtube|yt)\s+(?:and|an)\s+play\b", 
+            "play", 
+            text, 
+            flags=re.IGNORECASE
+        )
+        # Also handle "open spotify/music and play" -> "play"
+        consolidated = re.sub(
+            r"\bopen\s+(?:spotify|music)\s+(?:and|an)\s+play\b", 
+            "play", 
+            consolidated, 
+            flags=re.IGNORECASE
+        )
+        
+        steps = self._split_into_steps(consolidated)
         if not steps:
             # Try AI planning if we couldn't split
             steps = self._interpret_with_ai(text)
@@ -1396,6 +1726,132 @@ class MultiIntentPlanner:
         return None
 
 
+class SystemNavigationService:
+    def __init__(self):
+        self.bundle_cache = {
+            'safari': 'com.apple.Safari',
+            'chrome': 'com.google.Chrome',
+            'terminal': 'com.apple.Terminal',
+            'finder': 'com.apple.finder',
+            'notes': 'com.apple.Notes',
+            'system settings': 'com.apple.systempreferences',
+        }
+        self.pane_map = {
+            'display': 'x-apple.systempreferences:com.apple.preference.displays',
+            'sound': 'x-apple.systempreferences:com.apple.preference.sound',
+            'wifi': 'x-apple.systempreferences:com.apple.preference.network',
+            'network': 'x-apple.systempreferences:com.apple.preference.network',
+            'bluetooth': 'x-apple.systempreferences:com.apple.preference.bluetooth',
+            'battery': 'x-apple.systempreferences:com.apple.preference.battery',
+            'keyboard': 'x-apple.systempreferences:com.apple.preference.keyboard',
+            'trackpad': 'x-apple.systempreferences:com.apple.preference.trackpad',
+            'mouse': 'x-apple.systempreferences:com.apple.preference.mouse',
+            'privacy': 'x-apple.systempreferences:com.apple.preference.security',
+        }
+
+    def open_settings(self, section=None):
+        try:
+            if section and section in self.pane_map:
+                subprocess.run(['open', self.pane_map[section]], check=False)
+            else:
+                subprocess.run(['open', '-a', 'System Settings'], check=False)
+            subprocess.run(['osascript', '-e', 'tell application "System Settings" to activate'], check=False)
+            return f"⚙️ Opening System Settings{(' → ' + section) if section else ''}"
+        except Exception as e:
+            try:
+                subprocess.Popen(['open', '/System/Applications/System Settings.app'])
+                return "⚙️ Opening System Settings"
+            except Exception:
+                return f"❌ Failed to open System Settings: {e}"
+
+    def open_app(self, app_name):
+        try:
+            key = app_name.strip().lower()
+            bid = self.bundle_cache.get(key)
+            if bid:
+                subprocess.run(['open', '-b', bid], check=False)
+            else:
+                subprocess.run(['open', '-a', app_name], check=False)
+            subprocess.run(['osascript', '-e', f'tell application "{app_name}" to activate'], check=False)
+            return f"🚀 Opening {app_name}"
+        except Exception as e:
+            return f"❌ Failed to open {app_name}: {e}"
+
+    def open_folder(self, name):
+        try:
+            n = name.strip()
+            home = os.path.expanduser('~')
+            known = {
+                'downloads': os.path.join(home, 'Downloads'),
+                'documents': os.path.join(home, 'Documents'),
+                'desktop': os.path.join(home, 'Desktop'),
+                'pictures': os.path.join(home, 'Pictures'),
+                'music': os.path.join(home, 'Music'),
+                'videos': os.path.join(home, 'Videos'),
+            }
+            path = known.get(n.lower())
+            if not path:
+                path = os.path.expanduser(n)
+            if os.path.isdir(path):
+                subprocess.run(['open', path], check=False)
+                return f"📁 Opening '{os.path.basename(path)}'"
+            return f"❌ Folder not found: {name}"
+        except Exception as e:
+            return f"❌ Failed to open folder '{name}': {e}"
+
+class MemoryManager:
+    def __init__(self, app):
+        self.app = app
+        self.data = {
+            'identity': {'name': None, 'timezone': None, 'locale': None},
+            'preferences': {'theme': None, 'language': None, 'voice': None, 'fast_mode': True, 'wakeword': None},
+            'favorites': {'apps': [], 'folders': [], 'websites': []},
+            'recents': {'commands': [], 'files': [], 'apps': []},
+            'facts': []
+        }
+
+    def load(self, memory):
+        if isinstance(memory, dict):
+            for k in self.data:
+                if k in memory and isinstance(memory[k], type(self.data[k])):
+                    self.data[k] = memory[k]
+
+    def save(self):
+        return self.data
+
+    def get_name(self):
+        return self.data.get('identity', {}).get('name')
+
+    def set_name(self, name):
+        self.data.setdefault('identity', {})['name'] = name
+
+    def set_pref(self, key, value):
+        self.data.setdefault('preferences', {})[key] = value
+
+    def get_pref(self, key):
+        return self.data.get('preferences', {}).get(key)
+
+    def add_recent_command(self, text):
+        rec = self.data.setdefault('recents', {}).setdefault('commands', [])
+        rec.append({'text': text, 'ts': datetime.datetime.now().isoformat()})
+        if len(rec) > 50:
+            self.data['recents']['commands'] = rec[-50:]
+
+    def add_recent_file(self, path):
+        rec = self.data.setdefault('recents', {}).setdefault('files', [])
+        rec.append({'path': path, 'ts': datetime.datetime.now().isoformat()})
+        if len(rec) > 50:
+            self.data['recents']['files'] = rec[-50:]
+
+    def add_recent_app(self, name):
+        rec = self.data.setdefault('recents', {}).setdefault('apps', [])
+        rec.append({'name': name, 'ts': datetime.datetime.now().isoformat()})
+        if len(rec) > 50:
+            self.data['recents']['apps'] = rec[-50:]
+
+    def remember_fact(self, key, value, tags=None):
+        facts = self.data.setdefault('facts', [])
+        facts.append({'key': key, 'value': value, 'tags': tags or []})
 class EnhancedJarvisGUI:
     """
     Enhanced GUI for SAM with Microsoft Copilot-inspired design.
@@ -1408,9 +1864,8 @@ class EnhancedJarvisGUI:
         """
         # Setup logging early so we can capture init issues
         self._setup_logging()
-        # Initialize theme (default to Copilot dark)
-        self.theme = "copilot_dark"
-        self.sidebar_width = 280
+        self.theme = "core_system"  # Bhavesh Pandey futuristic Core System style
+        self.sidebar_width = 200  # Slimmer sidebar for ChatGPT-style layout
         self.chat_font_size = 13
         self.conversation_history = []
         self.speaking = False
@@ -1432,14 +1887,26 @@ class EnhancedJarvisGUI:
         # Planner controls (modular)
         self.planner_enabled = True
         self.planning_strategy = "simple"  # simple | ai_assisted (extensible)
-        # Automation strategy: direct | simulate (mouse/keyboard)
-        self.automation_strategy = "simulate"
+        # Automation strategy: direct (uses webbrowser.open - reliable) | simulate (mouse/keyboard - can have issues)
+        self.automation_strategy = "direct"
         self.browser_controller = BrowserController()
         self.system_launcher = SystemLauncher()
+        self.whatsapp_automation = WhatsAppAutomation()  # WhatsApp messaging automation
+        self.fast_nav = SystemNavigationService()
+        self.window_mgr = WindowManager()
+        # Creator identity for origin questions
+        self.creator_name = "DaivikReddy"
 
         # Initialize components
         self._initialize_ui_components()
         self._initialize_audio_components()
+
+        try:
+            self.voice_mgr = VoiceInputManager(self)
+            self.hotword_engine = HotwordEngine(self)
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.warning(f"Voice manager init failed: {e}")
 
         # Initialize modular natural language navigator for system navigation
         try:
@@ -1463,6 +1930,23 @@ class EnhancedJarvisGUI:
 
         # Show profile selection
         self.load_or_prompt_profile()
+        try:
+            self.memory_manager = MemoryManager(self)
+            self.memory_manager.load(getattr(self, 'profile_memory', {}))
+        except Exception:
+            self.memory_manager = MemoryManager(self)
+        
+        # Initialize wake word detection (cross-platform)
+        self.wake_word_detector = None
+        self._init_wake_word_detection()
+
+        # Initialize system tray and hotkeys
+        self.always_on_top = False
+        self.tray_manager = None
+        self.hotkey_manager = None
+        self.mini_window = None
+        self._init_system_tray()
+
         
         # Show main UI
         self.show_main_ui()
@@ -1474,9 +1958,9 @@ class EnhancedJarvisGUI:
         """Display the main user interface."""
         self.setup_main_window()
         self.setup_menu()
-        self.setup_sidebar()
+        # Sidebar removed - now using 3-panel Core System layout
         self.setup_main_content()
-        self.setup_chat_area()
+        # Chat area is now part of setup_transcript_panel in setup_main_content
         self.setup_input_area()
         self.setup_status_bar()
         self.setup_speech_recognition()
@@ -1492,11 +1976,25 @@ class EnhancedJarvisGUI:
                 self.logger.warning(f"ToastManager init failed: {e}")
             self.toast = None
         
+        # Start system tray and hotkeys
+        self._start_tray_and_hotkeys()
+        
         # Start system info updates
         self.update_system_info()
         
         # Add welcome message
-        self.root.after(1000, lambda: self.add_to_chat("SAM", "Hello! I'm SAM, your AI assistant. How can I help you today? You can ask me anything, use voice commands, or try the quick actions in the sidebar.", "info"))
+        greet_name = None
+        try:
+            greet_name = self.memory_manager.get_name()
+        except Exception:
+            greet_name = None
+        msg = f"Hello {greet_name}! I'm SAM, your AI assistant." if greet_name else "Hello! I'm SAM, your AI assistant."
+        msg += " How can I help you today?"
+        self.root.after(1000, lambda: self.add_to_chat("SAM", msg, "info"))
+        
+        # Check if should start minimized
+        if TRAY_AVAILABLE and TRAY_CONFIG.get("start_minimized", False):
+            self.root.after(100, self.minimize_to_tray)
         
         # Show the window
         self.root.mainloop()
@@ -1545,9 +2043,9 @@ class EnhancedJarvisGUI:
         # Initialize TTS engine
         try:
             self.tts_engine = pyttsx3.init()
-            self.tts_engine.setProperty('rate', 150)
+            self.tts_engine.setProperty('rate', 185)  # Faster JARVIS-like speech
             self.tts_engine.setProperty('volume', 0.8)
-            self.tts_rate = 150
+            self.tts_rate = 185
             self.tts_volume = 0.8
             if hasattr(self, 'logger'):
                 self.logger.info("TTS engine initialized")
@@ -1564,6 +2062,8 @@ class EnhancedJarvisGUI:
                         if not text:
                             continue
                         self.speaking = True
+                        # Activate orb animation when speaking
+                        self._set_orb_voice_active(True)
                         self._apply_enhanced_tts_settings()
                         self.tts_engine.say(text)
                         self.tts_engine.runAndWait()
@@ -1576,6 +2076,8 @@ class EnhancedJarvisGUI:
                             pass
                     finally:
                         self.speaking = False
+                        # Deactivate orb animation when done speaking
+                        self._set_orb_voice_active(False)
             try:
                 self.tts_thread = threading.Thread(target=_tts_worker, daemon=True)
                 self.tts_thread.start()
@@ -1587,7 +2089,7 @@ class EnhancedJarvisGUI:
                 self.logger.error(f"TTS initialization error: {e}")
             self.tts_engine = None
             self.tts_voice_id = None
-            self.tts_rate = 150
+            self.tts_rate = 185
             self.tts_volume = 0.8
         
         # Initialize speech recognition
@@ -1626,6 +2128,338 @@ class EnhancedJarvisGUI:
         
         # Theme settings
         self.accent_color = "#0078d4"  # Default accent color
+
+    def _init_wake_word_detection(self):
+        """Initialize wake word detection using Picovoice Porcupine."""
+        try:
+            from features.wake_word import WakeWordDetector, PORCUPINE_AVAILABLE, PYAUDIO_AVAILABLE
+            from config.settings import WAKE_WORD_CONFIG
+            
+            if not WAKE_WORD_CONFIG.get("enabled", False):
+                if hasattr(self, 'logger'):
+                    self.logger.info("Wake word detection disabled in settings")
+                return
+            
+            if not PORCUPINE_AVAILABLE or not PYAUDIO_AVAILABLE:
+                if hasattr(self, 'logger'):
+                    self.logger.warning("Wake word detection unavailable - missing dependencies")
+                return
+            
+            access_key = WAKE_WORD_CONFIG.get("access_key", "")
+            if not access_key:
+                if hasattr(self, 'logger'):
+                    self.logger.warning("Wake word detection requires Picovoice access key. Get free key at https://console.picovoice.ai/")
+                print("[INFO] Wake word detection requires Picovoice access key.")
+                print("[INFO] Get your free access key at: https://console.picovoice.ai/")
+                return
+            
+            keywords = WAKE_WORD_CONFIG.get("keywords", ["jarvis"])
+            sensitivity = WAKE_WORD_CONFIG.get("sensitivity", 0.5)
+            
+            self.wake_word_detector = WakeWordDetector(
+                access_key=access_key,
+                keywords=keywords,
+                sensitivities=[sensitivity] * len(keywords),
+                on_wake_word=self._on_wake_word_detected
+            )
+            
+            if self.wake_word_detector.start():
+                if hasattr(self, 'logger'):
+                    self.logger.info(f"Wake word detection started. Listening for: {keywords}")
+                print(f"[INFO] Wake word detection active. Say '{keywords[0]}' to activate SAM.")
+            else:
+                self.wake_word_detector = None
+                if hasattr(self, 'logger'):
+                    self.logger.error("Failed to start wake word detection")
+                    
+        except ImportError as e:
+            if hasattr(self, 'logger'):
+                self.logger.warning(f"Wake word module not available: {e}")
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Wake word initialization error: {e}")
+            print(f"[ERROR] Wake word initialization failed: {e}")
+
+    def _on_wake_word_detected(self, keyword: str):
+        """Callback when wake word is detected."""
+        try:
+            if hasattr(self, 'logger'):
+                self.logger.info(f"Wake word detected: {keyword}")
+            
+            # Show toast notification if available
+            if hasattr(self, 'toast') and self.toast:
+                try:
+                    self.root.after(0, lambda: self.toast.show(f"🎤 Wake word '{keyword}' detected!", "info"))
+                except Exception:
+                    pass
+            
+            # Trigger speech recognition
+            self.root.after(0, self._start_listening_after_wake)
+            
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error handling wake word: {e}")
+
+    def _start_listening_after_wake(self):
+        """Start listening for command after wake word."""
+        try:
+            # Provide audio feedback
+            self.speak("Yes?")
+            
+            # Start speech recognition
+            self.listening = True
+            self.is_listening = True
+            
+            # Update UI if possible
+            if hasattr(self, 'mic_button'):
+                try:
+                    colors = THEMES.get(self.theme, THEMES["copilot_dark"])
+                    self.mic_button.configure(fg_color=colors["success"])
+                except Exception:
+                    pass
+            
+            # Listen for command in background thread
+            threading.Thread(target=self._listen_for_command, daemon=True).start()
+            
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error starting listen after wake: {e}")
+
+    def stop_wake_word_detection(self):
+        """Stop wake word detection - call on app exit."""
+        if self.wake_word_detector:
+            self.wake_word_detector.stop()
+            self.wake_word_detector = None
+
+    def toggle_wake_word(self):
+        """Toggle Porcupine wake word detection on/off."""
+        try:
+            if self.wake_word_detector and self.wake_word_detector.is_running():
+                # Stop wake word detection
+                self.wake_word_detector.stop()
+                self.wake_word_detector = None
+                self.add_to_chat("System", "🎤 Wake word detection disabled.", "system")
+                if hasattr(self, 'wake_word_btn'):
+                    self.wake_word_btn.configure(
+                        text="🎤 Wake Word: Off",
+                        fg_color=THEMES[self.theme]["btnbg"]
+                    )
+            else:
+                # Start wake word detection
+                from config.settings import WAKE_WORD_CONFIG
+                access_key = WAKE_WORD_CONFIG.get("access_key", "")
+                
+                if not access_key:
+                    self.add_to_chat("System", "⚠️ Wake word requires Picovoice API key.\nGet free key at: https://console.picovoice.ai/\nAdd to config/settings.py → WAKE_WORD_CONFIG['access_key']", "warning")
+                    return
+                
+                from features.wake_word import WakeWordDetector, PORCUPINE_AVAILABLE, PYAUDIO_AVAILABLE
+                
+                if not PORCUPINE_AVAILABLE or not PYAUDIO_AVAILABLE:
+                    self.add_to_chat("System", "⚠️ Wake word dependencies not installed.\nRun: pip install pvporcupine pyaudio", "warning")
+                    return
+                
+                keywords = WAKE_WORD_CONFIG.get("keywords", ["jarvis"])
+                sensitivity = WAKE_WORD_CONFIG.get("sensitivity", 0.5)
+                
+                self.wake_word_detector = WakeWordDetector(
+                    access_key=access_key,
+                    keywords=keywords,
+                    sensitivities=[sensitivity] * len(keywords),
+                    on_wake_word=self._on_wake_word_detected
+                )
+                
+                if self.wake_word_detector.start():
+                    self.add_to_chat("System", f"🎤 Wake word detection enabled!\nSay '{keywords[0]}' to activate SAM.", "success")
+                    if hasattr(self, 'wake_word_btn'):
+                        self.wake_word_btn.configure(
+                            text=f"🎤 Wake Word: On ({keywords[0]})",
+                            fg_color=THEMES[self.theme]["success"]
+                        )
+                else:
+                    self.wake_word_detector = None
+                    self.add_to_chat("System", "❌ Failed to start wake word detection.", "error")
+                    
+        except Exception as e:
+            print(f"Wake word toggle error: {e}")
+            self.add_to_chat("System", f"❌ Wake word error: {str(e)}", "error")
+
+    # ============================================================================
+    # SYSTEM TRAY AND HOTKEY METHODS
+    # ============================================================================
+    
+    def _init_system_tray(self):
+        """Initialize system tray icon and global hotkeys."""
+        if not TRAY_AVAILABLE or not TRAY_CONFIG.get("enabled", False):
+            if hasattr(self, 'logger'):
+                self.logger.info("System tray disabled or unavailable")
+            return
+        
+        try:
+            # Get theme colors for mini window
+            theme_colors = THEMES.get(self.theme, THEMES["copilot_dark"])
+            
+            # Map theme colors to mini window expected keys
+            mini_colors = {
+                "bg": theme_colors.get("bg", "#1a1a2e"),
+                "fg": theme_colors.get("fg", "#ffffff"),
+                "accent": theme_colors.get("accent", "#7C3AED"),
+                "input_bg": theme_colors.get("entrybg", theme_colors.get("input_bg", "#2d2d44")),
+                "input_border": theme_colors.get("input_border", "#3d3d5c")
+            }
+            
+            # Initialize mini floating window
+            self.mini_window = MiniFloatingWindow(self, theme_colors=mini_colors)
+            
+            if hasattr(self, 'logger'):
+                self.logger.info("System tray components initialized (will start after main window)")
+                
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Failed to initialize system tray: {e}")
+            print(f"[ERROR] System tray initialization failed: {e}")
+    
+    def _start_tray_and_hotkeys(self):
+        """Start the tray icon and hotkey listener after main window is ready."""
+        if not TRAY_AVAILABLE or not TRAY_CONFIG.get("enabled", False):
+            return
+        
+        try:
+            # Define callbacks for tray menu
+            tray_callbacks = {
+                'toggle_visibility': self.toggle_visibility,
+                'toggle_always_on_top': self.toggle_always_on_top,
+                'show_mini_mode': self.show_mini_mode,
+                'toggle_listening': self.toggle_listening if hasattr(self, 'toggle_listening') else lambda: None,
+                'mute': self.stop_speaking if hasattr(self, 'stop_speaking') else lambda: None,
+                'show_settings': self.show_settings if hasattr(self, 'show_settings') else lambda: None,
+                'exit': self.on_exit
+            }
+            
+            # Initialize and start tray manager
+            self.tray_manager = TrayManager(self, callbacks=tray_callbacks)
+            if self.tray_manager.start():
+                if hasattr(self, 'logger'):
+                    self.logger.info("System tray icon started")
+            
+            # Initialize and start hotkey manager
+            hotkey = TRAY_CONFIG.get("hotkey", "ctrl+shift+s")
+            self.hotkey_manager = HotkeyManager(self, hotkey=hotkey)
+            self.hotkey_manager.register('toggle_visibility', self.toggle_visibility)
+            if self.hotkey_manager.start():
+                if hasattr(self, 'logger'):
+                    self.logger.info(f"Global hotkey registered: {hotkey}")
+            
+            # Show notification that SAM is ready
+            if TRAY_CONFIG.get("show_notifications", True) and self.tray_manager:
+                self.root.after(2000, lambda: self.tray_manager.notify("SAM Ready", "Press Ctrl+Shift+S to show/hide"))
+                
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Failed to start tray/hotkeys: {e}")
+    
+    def minimize_to_tray(self):
+        """Minimize the main window to system tray."""
+        try:
+            self.root.withdraw()  # Hide the window
+            
+            # Show notification
+            if self.tray_manager and TRAY_CONFIG.get("show_notifications", True):
+                self.tray_manager.notify("SAM Minimized", "Click tray icon or press Ctrl+Shift+S to restore")
+            
+            if hasattr(self, 'logger'):
+                self.logger.info("Window minimized to tray")
+                
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error minimizing to tray: {e}")
+    
+    def restore_from_tray(self):
+        """Restore the main window from system tray."""
+        try:
+            self.root.deiconify()  # Show the window
+            self.root.lift()  # Bring to front
+            self.root.focus_force()  # Focus the window
+            
+            # Restore always-on-top state if enabled
+            if self.always_on_top:
+                self.root.attributes("-topmost", True)
+            
+            if hasattr(self, 'logger'):
+                self.logger.info("Window restored from tray")
+                
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error restoring from tray: {e}")
+    
+    def toggle_visibility(self):
+        """Toggle main window visibility (for hotkey and tray menu)."""
+        try:
+            if self.root.state() == 'withdrawn' or not self.root.winfo_viewable():
+                self.restore_from_tray()
+            else:
+                self.minimize_to_tray()
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error toggling visibility: {e}")
+    
+    def toggle_always_on_top(self):
+        """Toggle always-on-top mode for the main window."""
+        try:
+            self.always_on_top = not self.always_on_top
+            self.root.attributes("-topmost", self.always_on_top)
+            
+            status = "enabled" if self.always_on_top else "disabled"
+            if hasattr(self, 'toast') and self.toast:
+                self.toast.show(f"📌 Always on Top {status}", "info")
+            
+            if hasattr(self, 'logger'):
+                self.logger.info(f"Always-on-top {status}")
+                
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error toggling always-on-top: {e}")
+    
+    def show_mini_mode(self):
+        """Show the mini floating window."""
+        try:
+            if self.mini_window:
+                # Hide main window first
+                self.minimize_to_tray()
+                # Show mini window
+                self.mini_window.show()
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error showing mini mode: {e}")
+    
+    def hide_mini_mode(self):
+        """Hide the mini floating window."""
+        try:
+            if self.mini_window:
+                self.mini_window.hide()
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error hiding mini mode: {e}")
+    
+    def _stop_tray_and_hotkeys(self):
+        """Stop system tray and hotkey listeners."""
+        try:
+            if self.tray_manager:
+                self.tray_manager.stop()
+                self.tray_manager = None
+            
+            if self.hotkey_manager:
+                self.hotkey_manager.stop()
+                self.hotkey_manager = None
+            
+            if self.mini_window:
+                self.mini_window.hide()
+                self.mini_window = None
+                
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Error stopping tray/hotkeys: {e}")
+
 
     @staticmethod
     def prompt_for_profile():
@@ -1764,6 +2598,14 @@ class EnhancedJarvisGUI:
             lang_menu.add_command(label=f"🌐 {lang}", command=lambda l=lang: self.change_language(l))
         menubar.add_cascade(label="🌍 Language", menu=lang_menu)
         
+        # Window menu (new)
+        window_menu = tk.Menu(menubar, tearoff=0, bg=THEMES[self.theme]["sidebar"], fg=THEMES[self.theme]["fg"])
+        window_menu.add_command(label="📌 Always on Top", command=self.toggle_always_on_top)
+        window_menu.add_command(label="💬 Mini Mode", command=self.show_mini_mode)
+        window_menu.add_separator()
+        window_menu.add_command(label="⬇️ Minimize to Tray", command=self.minimize_to_tray)
+        menubar.add_cascade(label="🪟 Window", menu=window_menu)
+        
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0, bg=THEMES[self.theme]["sidebar"], fg=THEMES[self.theme]["fg"])
         help_menu.add_command(label="❓ Help", command=self.show_help)
@@ -1773,75 +2615,289 @@ class EnhancedJarvisGUI:
         
         self.root.config(menu=menubar)
 
+    def start_new_chat(self):
+        """Clear chat history and start a fresh conversation."""
+        self.clear_chat()
+        self.add_to_chat("SAM", "Starting a new chat session. How can I help you?", "assistant")
+
+    def load_chat_sessions(self):
+        """Load past chat sessions (placeholder)."""
+        self.chat_sessions = {}
+        # TODO: Implement actual session loading from file
+        pass
+
+    def delete_chat_session(self, session_id):
+        """Delete a chat session."""
+        if session_id in self.chat_sessions:
+            del self.chat_sessions[session_id]
+    def start_new_chat(self):
+        """Start a new chat session."""
+        try:
+            # Save current session if not empty
+            if self.conversation_history:
+                self.save_current_chat_session()
+            
+            # Clear UI
+            for widget in self.chat_scrollable_frame.winfo_children():
+                widget.destroy()
+            
+            # Clear history
+            self.conversation_history = []
+            
+            # Reset ID
+            self.current_session_id = int(time.time())
+            
+            # Add welcome message
+            greeting = f"Hello {self.username.split()[0]}! How can I help you today?"
+            self.add_to_chat("SAM", greeting, "assistant")
+            
+            self.refresh_chat_history_ui()
+            
+        except Exception as e:
+            print(f"Error starting new chat: {e}")
+
+    def refresh_chat_history_ui(self):
+        """Refresh the sidebar chat history list."""
+        if not hasattr(self, 'chat_history_frame'):
+            return
+            
+        # Clear existing
+        for widget in self.chat_history_frame.winfo_children():
+            widget.destroy()
+            
+        colors = THEMES[self.theme]
+        
+        # Determine current ID
+        current_id = getattr(self, "current_session_id", 0)
+        
+        # Add buttons for each session
+        for session in self.chat_sessions:
+            s_id = session.get("id")
+            s_preview = session.get("preview", "New Chat")
+            
+            # Truncate preview
+            if len(s_preview) > 22:
+                s_preview = s_preview[:20] + "..."
+            
+            btn = ctk.CTkButton(
+                self.chat_history_frame,
+                text=s_preview,
+                font=("Segoe UI", 12),
+                fg_color=colors["card"] if s_id != current_id else colors["accent"],
+                text_color=colors["fg"] if s_id != current_id else "#ffffff",
+                hover_color=colors["hover"],
+                anchor="w",
+                height=32,
+                command=lambda sid=s_id: self.load_chat_session(sid)
+            )
+            btn.pack(fill="x", pady=2)
+
     def setup_sidebar(self) -> None:
         """
-        Set up the sidebar with Copilot-style design.
+        Set up the sidebar with ChatGPT-style chat history and user account.
         """
         colors = THEMES[self.theme]
         
-        # Main sidebar
+        # Main sidebar with rounded corners and subtle border
         self.sidebar = ctk.CTkFrame(
             self.container, 
             fg_color=colors["sidebar"], 
             width=self.sidebar_width, 
-            corner_radius=0
+            corner_radius=16,
+            border_width=1,
+            border_color=colors.get("glass_border", colors["input_border"])
         )
-        self.sidebar.pack(side="left", fill="y")
+        self.sidebar.pack(side="left", fill="y", padx=(0, 8), pady=0)
         self.sidebar.pack_propagate(False)
         
         # Resize handle
         self.sidebar_drag = ctk.CTkFrame(
             self.container, 
             fg_color=colors["input_border"], 
-            width=2
+            width=3,
+            corner_radius=2
         )
         self.sidebar_drag.pack(side="left", fill="y")
         self.sidebar_drag.bind('<B1-Motion>', self.resize_sidebar)
         
-        # Logo and avatar section
-        logo_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        logo_frame.pack(pady=(20, 10))
-        
-        # Avatar
-        self.avatar_frame = ctk.CTkFrame(logo_frame, fg_color="transparent")
-        self.avatar_frame.pack(pady=(0, 15))
-        self.setup_avatar()
-        
-        # Title
-        title_frame = ctk.CTkFrame(logo_frame, fg_color="transparent")
-        title_frame.pack()
-        
-        self.title_label = ctk.CTkLabel(
-            title_frame, 
-            text="SAM",
-            font=("Segoe UI", 28, "bold"), 
-            text_color=colors["accent"]
+        # === TOP: New Chat Button ===
+        new_chat_btn = ctk.CTkButton(
+            self.sidebar,
+            text="+ New Chat",
+            font=("SF Pro Display", 13, "bold") if platform.system() == "Darwin" else ("Segoe UI", 13, "bold"),
+            fg_color=colors["accent"],
+            hover_color=colors["accent_hover"],
+            height=40,
+            corner_radius=10,
+            command=self.start_new_chat
         )
-        self.title_label.pack()
+        new_chat_btn.pack(fill="x", padx=12, pady=(16, 12))
         
-        self.subtitle_label = ctk.CTkLabel(
-            title_frame, 
-            text="Your AI Assistant",
-            font=("Segoe UI", 12), 
+        # === MIDDLE: Chat History List ===
+        history_label = ctk.CTkLabel(
+            self.sidebar,
+            text="Chat History",
+            font=("SF Pro Display", 11) if platform.system() == "Darwin" else ("Segoe UI", 11),
             text_color=colors["subfg"]
         )
-        self.subtitle_label.pack(pady=(5, 0))
+        history_label.pack(anchor="w", padx=16, pady=(8, 4))
         
-        # Status indicator
-        self.status_indicator = ctk.CTkFrame(
-            logo_frame, 
-            fg_color=colors["success"], 
-            height=12, 
-            width=12, 
-            corner_radius=6
+        # Scrollable chat history container
+        self.chat_history_frame = ctk.CTkScrollableFrame(
+            self.sidebar,
+            fg_color="transparent",
+            corner_radius=0
         )
-        self.status_indicator.pack(pady=10)
+        self.chat_history_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         
-        # Quick actions
-        self.setup_quick_actions()
+        # Initialize chat sessions storage
+        self.chat_sessions = []
+        self.current_session_id = 0
+        self.load_chat_sessions()
+        self.refresh_chat_history_ui()
         
-        # System panel
-        self.setup_system_panel()
+        # === BOTTOM: User Account Section ===
+        account_frame = ctk.CTkFrame(
+            self.sidebar,
+            fg_color=colors["card"],
+            corner_radius=12,
+            border_width=1,
+            border_color=colors.get("glass_border", colors["input_border"])
+        )
+        account_frame.pack(fill="x", padx=12, pady=(0, 12), side="bottom")
+        
+        account_inner = ctk.CTkFrame(account_frame, fg_color="transparent")
+        account_inner.pack(fill="x", padx=12, pady=10)
+        
+        # User icon
+        user_icon = ctk.CTkLabel(
+            account_inner,
+            text="👤",
+            font=("Segoe UI", 20),
+            text_color=colors["accent"]
+        )
+        user_icon.pack(side="left", padx=(0, 10))
+        
+        # Username
+        self.account_name_label = ctk.CTkLabel(
+            account_inner,
+            text=getattr(self, 'username', 'User'),
+            font=("SF Pro Display", 12, "bold") if platform.system() == "Darwin" else ("Segoe UI", 12, "bold"),
+            text_color=colors["fg"]
+        )
+        self.account_name_label.pack(side="left", fill="x", expand=True, anchor="w")
+        
+        # Switch account button
+        switch_btn = ctk.CTkButton(
+            account_inner,
+            text="⚙️",
+            width=30,
+            height=30,
+            corner_radius=8,
+            fg_color="transparent",
+            hover_color=colors["hover"],
+            command=self.switch_user_account
+        )
+        switch_btn.pack(side="right")
+        
+    def switch_user_account(self):
+        """Switch user account dialog."""
+        dialog = ctk.CTkInputDialog(text="Enter username:", title="Switch User")
+        new_user = dialog.get_input()
+        if new_user and new_user.strip():
+            self.username = new_user.strip()
+            self.account_name_label.configure(text=self.username)
+            # Re-save profile with new name to create new file
+            self.save_profile()
+            self.add_to_chat("System", f"Switched to user: {self.username}", "system")
+            # Clear sessions for new user (in real app, load user specific sessions)
+            self.chat_sessions = [] 
+            self.start_new_chat()
+
+    def save_current_chat_session(self):
+        """Save the current chat session to history."""
+        if not self.conversation_history:
+            return
+            
+        # Don't save empty "Hello!" sessions
+        if len(self.conversation_history) <= 1:
+            return
+
+        session_data = {
+            "id": getattr(self, "current_session_id", int(time.time())),
+            "timestamp": datetime.datetime.now().isoformat(),
+            "preview": self.conversation_history[1]["message"][:30] + "..." if len(self.conversation_history) > 1 else "New Chat",
+            "messages": self.conversation_history
+        }
+        
+        # Load existing or init new
+        sessions = self.load_chat_sessions()
+        
+        # Update or add
+        updated = False
+        for i, s in enumerate(sessions):
+            if s["id"] == session_data["id"]:
+                sessions[i] = session_data
+                updated = True
+                break
+        
+        if not updated:
+            sessions.insert(0, session_data)  # Add to top
+            
+        # Keep only last 20 sessions per user
+        sessions = sessions[:20]
+        
+        try:
+            with open(f"chat_history_{self.username}.json", "w", encoding="utf-8") as f:
+                json.dump(sessions, f, indent=2, ensure_ascii=False)
+            self.chat_sessions = sessions
+            self.refresh_chat_history_ui()
+        except Exception as e:
+            print(f"Error saving chat history: {e}")
+
+    def load_chat_sessions(self):
+        """Load chat sessions from disk."""
+        try:
+            filename = f"chat_history_{self.username}.json"
+            if os.path.exists(filename):
+                with open(filename, "r", encoding="utf-8") as f:
+                    self.chat_sessions = json.load(f)
+            else:
+                self.chat_sessions = []
+            return self.chat_sessions
+        except Exception:
+            return []
+
+    def load_chat_session(self, session_id):
+        """Load a specific chat session."""
+        try:
+            # First save current if it's new/modified
+            if self.conversation_history and self.current_session_id != session_id:
+                self.save_current_chat_session()
+            
+            # Find session
+            target_session = next((s for s in self.chat_sessions if s["id"] == session_id), None)
+            
+            if target_session:
+                self.current_session_id = session_id
+                self.conversation_history = target_session.get("messages", [])
+                
+                # Clear UI
+                for widget in self.chat_scrollable_frame.winfo_children():
+                    widget.destroy()
+                
+                # Rebuild UI
+                for msg in self.conversation_history:
+                    self.add_to_chat(
+                        msg.get("sender", "SAM"), 
+                        msg.get("message", ""), 
+                        msg.get("type", "info")
+                    )
+                
+                self.refresh_chat_history_ui()
+                
+        except Exception as e:
+            print(f"Error loading session: {e}")
 
     def setup_avatar(self) -> None:
         """Set up the avatar with Copilot-style design."""
@@ -1897,12 +2953,14 @@ class EnhancedJarvisGUI:
             ("🧮", "Calc", self.open_calculator),
             ("🌤️", "Weather", lambda: self.process_command("weather")),
             ("📸", "Screen", self.quick_screenshot),
+            ("🔍", "Analyze", self.quick_screen_analysis),  # Screen Analysis with OCR + AI
             ("📰", "News", lambda: self.process_command("news")),
             ("🛠️", "System", self.show_system_info_popup),
             ("🔤", "ASCII Art", self.ascii_art_generator),
             ("💻", "Code", lambda: self.process_command("generate fibonacci")),
             ("🎲", "3D Models", self.open_3d_model_viewer),
-            ("📁", "Load 3D", self.load_custom_3d_model)
+            ("📁", "Load 3D", self.load_custom_3d_model),
+            ("🔎", "Find & Open", self.prompt_find_and_open)
         ]
         
         for i, (icon, text, command) in enumerate(actions):
@@ -1980,9 +3038,23 @@ class EnhancedJarvisGUI:
             command=self.toggle_hotword_detection, 
             corner_radius=8
         )
-        hotword_btn.pack(fill="x", padx=20, pady=(0, 10))
+        hotword_btn.pack(fill="x", padx=20, pady=(0, 5))
         self.hotword_btn = hotword_btn
         self.update_hotword_btn_state()
+        
+        # Wake Word (Porcupine) toggle button
+        wake_word_btn = ctk.CTkButton(
+            self.sidebar, 
+            text="🎤 Wake Word: Off", 
+            font=("Segoe UI", 10),
+            fg_color=colors["btnbg"], 
+            text_color=colors["btnfg"],
+            hover_color=colors["btnactive"], 
+            command=self.toggle_wake_word, 
+            corner_radius=8
+        )
+        wake_word_btn.pack(fill="x", padx=20, pady=(0, 10))
+        self.wake_word_btn = wake_word_btn
 
     def setup_system_panel(self) -> None:
         """
@@ -2018,35 +3090,560 @@ class EnhancedJarvisGUI:
         self.update_weather_display()
 
     def setup_main_content(self) -> None:
-        """Set up the main content area with futuristic design like the video."""
+        """Set up the main content with Core System 3-panel layout."""
         colors = THEMES[self.theme]
         
-        # Main content container
-        self.main_frame = ctk.CTkFrame(
-            self.container, 
-            fg_color=colors["bg"], 
-            corner_radius=0
-        )
-        self.main_frame.pack(side="left", fill="both", expand=True)
+        # Top navigation bar (Core System style)
+        self.setup_core_system_navbar()
         
-        # Create three-panel layout like in the video
-        self.setup_center_panel()  # Main content area
-        self.setup_right_panel()  # Temporal & Network info
+        # Main content area with 3 panels
+        content_region = ctk.CTkFrame(self.container, fg_color=colors["bg"], corner_radius=0)
+        content_region.pack(fill="both", expand=True)
         
-        # Welcome animation removed as requested
+        # Configure grid for 3-panel layout
+        content_region.grid_columnconfigure(0, weight=0, minsize=280)  # Left panel
+        content_region.grid_columnconfigure(1, weight=1)  # Center panel (flexible)
+        content_region.grid_columnconfigure(2, weight=0, minsize=320)  # Right panel
+        content_region.grid_rowconfigure(0, weight=1)
+        
+        # Store reference
+        self.main_content_region = content_region
+        
+        # Left panel - Visual Input + System Metrics
+        self.setup_left_panel(content_region)
+        
+        # Center panel - Core System Orb
+        self.setup_core_system_center(content_region)
+        
+        # Right panel - Transcript/Chat
+        self.setup_transcript_panel(content_region)
+        
+        # Footer with attribution
+        self.setup_footer()
+        
         self.welcome_gif_visible = False
         self.welcome_gif_shown_once = True
     
-    def setup_center_panel(self):
-        """Set up the center panel for main content."""
+    def setup_core_system_navbar(self):
+        """Set up the Core System style navigation bar (simplified - no tabs)."""
         colors = THEMES[self.theme]
         
-        self.center_panel = ctk.CTkFrame(
-            self.main_frame,
+        # Navigation bar
+        navbar = ctk.CTkFrame(self.container, fg_color=colors["panel_bg"], height=48, corner_radius=0)
+        navbar.pack(fill="x")
+        navbar.pack_propagate(False)
+        
+        # Left side - SAM branding and Online indicator
+        nav_left = ctk.CTkFrame(navbar, fg_color="transparent")
+        nav_left.pack(side="left", padx=20, pady=8)
+        
+        # SAM Logo/Title
+        ctk.CTkLabel(
+            nav_left,
+            text="⚡ SAM",
+            font=("Consolas", 14, "bold"),
+            text_color=colors["accent"]
+        ).pack(side="left")
+        
+        ctk.CTkLabel(
+            nav_left,
+            text="Smart AI Manager",
+            font=("Consolas", 11),
+            text_color=colors["subfg"]
+        ).pack(side="left", padx=(12, 0))
+        
+        self.nav_tabs = {}  # Keep empty dict for compatibility
+        
+        # Online indicator
+        online_frame = ctk.CTkFrame(nav_left, fg_color="transparent")
+        online_frame.pack(side="left", padx=(30, 0))
+        
+        online_dot = ctk.CTkLabel(
+            online_frame,
+            text="●",
+            font=("Segoe UI", 12),
+            text_color=colors["success"]
+        )
+        online_dot.pack(side="left")
+        
+        ctk.CTkLabel(
+            online_frame,
+            text="ONLINE",
+            font=("Consolas", 11),
+            text_color=colors["success"]
+        ).pack(side="left", padx=(4, 0))
+        
+        # Right side - Status indicators
+        nav_right = ctk.CTkFrame(navbar, fg_color="transparent")
+        nav_right.pack(side="right", padx=20, pady=8)
+        
+        # System Ready indicator
+        ctk.CTkLabel(
+            nav_right,
+            text="◉ SYSTEM READY",
+            font=("Consolas", 10),
+            text_color=colors["subfg"]
+        ).pack(side="right", padx=(10, 0))
+        
+        # Network indicator
+        ctk.CTkLabel(
+            nav_right,
+            text="📶 NET",
+            font=("Consolas", 10),
+            text_color=colors["subfg"]
+        ).pack(side="right")
+    
+    def switch_nav_tab(self, tab_name):
+        """Switch active navigation tab."""
+        colors = THEMES[self.theme]
+        for name, btn in self.nav_tabs.items():
+            if name == tab_name:
+                btn.configure(fg_color=colors["accent"], text_color="#ffffff")
+            else:
+                btn.configure(fg_color="transparent", text_color=colors["subfg"])
+    
+    def setup_left_panel(self, parent):
+        """Set up left panel with Visual Input, Chat History, and Change User."""
+        colors = THEMES[self.theme]
+        
+        # Left panel container
+        left_panel = ctk.CTkFrame(
+            parent,
+            fg_color=colors["panel_bg"],
+            corner_radius=12,
+            border_width=1,
+            border_color=colors["border_glow"]
+        )
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
+        
+        # --- Visual Input Section ---
+        visual_section = ctk.CTkFrame(left_panel, fg_color="transparent")
+        visual_section.pack(fill="x", padx=12, pady=(12, 8))
+        
+        # Header with recording indicator
+        visual_header = ctk.CTkFrame(visual_section, fg_color="transparent")
+        visual_header.pack(fill="x")
+        
+        ctk.CTkLabel(
+            visual_header,
+            text="📹 VISUAL INPUT",
+            font=("Consolas", 11, "bold"),
+            text_color=colors["accent"]
+        ).pack(side="left")
+        
+        self.recording_indicator = ctk.CTkLabel(
+            visual_header,
+            text="●",
+            font=("Segoe UI", 14),
+            text_color=colors.get("progress_orange", "#f97316")
+        )
+        self.recording_indicator.pack(side="right")
+        
+        # Camera feed container
+        self.visual_input_frame = ctk.CTkFrame(
+            visual_section,
+            fg_color="#000000",
+            height=140,
+            corner_radius=8
+        )
+        self.visual_input_frame.pack(fill="x", pady=(8, 0))
+        self.visual_input_frame.pack_propagate(False)
+        
+        # Camera feed label (placeholder)
+        self.camera_feed_label = ctk.CTkLabel(
+            self.visual_input_frame,
+            text="📹 Camera Feed\n(Click to start)",
+            font=("Consolas", 10),
+            text_color=colors["subfg"]
+        )
+        self.camera_feed_label.pack(expand=True)
+        self.camera_feed_label.bind("<Button-1>", lambda e: self.toggle_camera())
+        
+        # Initialize camera variables
+        self.camera_active = False
+        self.camera_capture = None
+        self.camera_thread = None
+        self.camera_running = False
+        
+        # --- Chat History Section ---
+        history_section = ctk.CTkFrame(left_panel, fg_color="transparent")
+        history_section.pack(fill="both", expand=True, padx=12, pady=(8, 8))
+        
+        # Header
+        history_header = ctk.CTkFrame(history_section, fg_color="transparent")
+        history_header.pack(fill="x")
+        
+        ctk.CTkLabel(
+            history_header,
+            text="💬 CHAT HISTORY",
+            font=("Consolas", 11, "bold"),
+            text_color=colors["accent"]
+        ).pack(side="left")
+        
+        # New chat button
+        new_chat_btn = ctk.CTkButton(
+            history_header,
+            text="+ New",
+            width=50,
+            height=24,
+            corner_radius=6,
+            fg_color=colors["accent"],
+            hover_color=colors["hover"],
+            font=("Consolas", 10),
+            command=self.start_new_chat
+        )
+        new_chat_btn.pack(side="right")
+        
+        # Scrollable chat history list
+        self.left_chat_history_frame = ctk.CTkScrollableFrame(
+            history_section,
+            fg_color="transparent",
+            corner_radius=8
+        )
+        self.left_chat_history_frame.pack(fill="both", expand=True, pady=(8, 0))
+        
+        # Refresh chat history in left panel
+        self.refresh_left_chat_history()
+        
+        # --- Change User Section (Bottom) ---
+        user_section = ctk.CTkFrame(
+            left_panel,
+            fg_color=colors["card"],
+            corner_radius=8
+        )
+        user_section.pack(fill="x", padx=12, pady=(0, 12))
+        
+        user_inner = ctk.CTkFrame(user_section, fg_color="transparent")
+        user_inner.pack(fill="x", padx=10, pady=10)
+        
+        # User icon
+        ctk.CTkLabel(
+            user_inner,
+            text="👤",
+            font=("Segoe UI", 18),
+            text_color=colors["accent"]
+        ).pack(side="left", padx=(0, 8))
+        
+        # Current user name
+        self.left_panel_user_label = ctk.CTkLabel(
+            user_inner,
+            text=getattr(self, 'username', 'User'),
+            font=("Consolas", 12, "bold"),
+            text_color=colors["fg"]
+        )
+        self.left_panel_user_label.pack(side="left", fill="x", expand=True, anchor="w")
+        
+        # Change user button
+        change_user_btn = ctk.CTkButton(
+            user_inner,
+            text="Change",
+            width=60,
+            height=28,
+            corner_radius=6,
+            fg_color=colors["accent"],
+            hover_color=colors["hover"],
+            font=("Consolas", 10),
+            command=self.change_user_from_left_panel
+        )
+        change_user_btn.pack(side="right")
+        
+        # Initialize dummy labels for compatibility with metrics updates
+        self.cpu_percent_label = ctk.CTkLabel(left_panel, text="")
+        self.ram_percent_label = ctk.CTkLabel(left_panel, text="")
+        self.ram_usage_label = ctk.CTkLabel(left_panel, text="")
+        self.online_status = ctk.CTkLabel(left_panel, text="")
+        self.process_list_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
+        
+        # Store reference to left panel
+        self.left_panel = left_panel
+    
+    def refresh_left_chat_history(self):
+        """Refresh the chat history list in the left panel."""
+        colors = THEMES[self.theme]
+        
+        if not hasattr(self, 'left_chat_history_frame'):
+            return
+        
+        # Clear existing items
+        for widget in self.left_chat_history_frame.winfo_children():
+            widget.destroy()
+        
+        # Get chat sessions
+        sessions = getattr(self, 'chat_sessions', [])
+        
+        if not sessions:
+            # Show placeholder
+            ctk.CTkLabel(
+                self.left_chat_history_frame,
+                text="No chat history yet.\nStart a new conversation!",
+                font=("Consolas", 10),
+                text_color=colors["subfg"]
+            ).pack(expand=True, pady=20)
+            return
+        
+        # Display recent sessions (newest first, limit to 10)
+        for i, session in enumerate(reversed(sessions[-10:])):
+            session_frame = ctk.CTkFrame(
+                self.left_chat_history_frame,
+                fg_color=colors["card"] if i == 0 else "transparent",
+                corner_radius=6,
+                cursor="hand2"
+            )
+            session_frame.pack(fill="x", pady=2)
+            
+            # Session title (first message preview)
+            title = session.get('title', 'New Chat')
+            if len(title) > 25:
+                title = title[:22] + "..."
+            
+            session_label = ctk.CTkLabel(
+                session_frame,
+                text=f"💬 {title}",
+                font=("Consolas", 10),
+                text_color=colors["fg"] if i == 0 else colors["subfg"],
+                anchor="w"
+            )
+            session_label.pack(fill="x", padx=8, pady=6)
+            
+            # Bind click to load session
+            session_idx = len(sessions) - 1 - i
+            session_frame.bind("<Button-1>", lambda e, idx=session_idx: self.load_chat_session(idx))
+            session_label.bind("<Button-1>", lambda e, idx=session_idx: self.load_chat_session(idx))
+    
+    def change_user_from_left_panel(self):
+        """Change user from the left panel button."""
+        colors = THEMES[self.theme]
+        dialog = ctk.CTkInputDialog(text="Enter username:", title="Change User")
+        new_user = dialog.get_input()
+        if new_user and new_user.strip():
+            self.username = new_user.strip()
+            # Update left panel label
+            if hasattr(self, 'left_panel_user_label'):
+                self.left_panel_user_label.configure(text=self.username)
+            # Update sidebar label if exists
+            if hasattr(self, 'account_name_label'):
+                self.account_name_label.configure(text=self.username)
+            # Save profile
+            self.save_profile()
+            self.add_to_chat("System", f"Switched to user: {self.username}", "system")
+            # Clear sessions for new user
+            self.chat_sessions = []
+            self.start_new_chat()
+            self.refresh_left_chat_history()
+    
+    def setup_core_system_center(self, parent):
+        """Set up center panel with Core System orb visualization."""
+        colors = THEMES[self.theme]
+        
+        # Center panel container
+        center_panel = ctk.CTkFrame(
+            parent,
             fg_color=colors["bg"],
             corner_radius=0
         )
-        self.center_panel.pack(side="left", fill="both", expand=True)
+        center_panel.grid(row=0, column=1, sticky="nsew", padx=5, pady=10)
+        
+        # Configure grid
+        center_panel.grid_rowconfigure(0, weight=0)  # Header
+        center_panel.grid_rowconfigure(1, weight=1)  # Orb
+        center_panel.grid_rowconfigure(2, weight=0)  # Controls
+        center_panel.grid_columnconfigure(0, weight=1)
+        
+        # Header
+        header_frame = ctk.CTkFrame(center_panel, fg_color="transparent")
+        header_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 0))
+        
+        ctk.CTkLabel(
+            header_frame,
+            text="⚡ CORE SYSTEM",
+            font=("Consolas", 14, "bold"),
+            text_color=colors["accent"]
+        ).pack(side="left")
+        
+        self.freq_label = ctk.CTkLabel(
+            header_frame,
+            text="FREQ: 16-24KHZ",
+            font=("Consolas", 10),
+            text_color=colors["subfg"]
+        )
+        self.freq_label.pack(side="right")
+        
+        # Orb visualization container
+        orb_container = ctk.CTkFrame(center_panel, fg_color="transparent")
+        orb_container.grid(row=1, column=0, sticky="nsew")
+        
+        # Create the particle orb
+        self.core_orb = CoreSystemOrb(
+            orb_container,
+            theme=self.theme,
+            size=350
+        )
+        self.core_orb.pack(expand=True)
+        self.core_orb.start_animation()
+        
+        # Control buttons
+        controls_frame = ctk.CTkFrame(center_panel, fg_color="transparent")
+        controls_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 20))
+        
+        # Center the buttons
+        button_container = ctk.CTkFrame(controls_frame, fg_color="transparent")
+        button_container.pack(expand=True)
+        
+        # Camera button
+        self.ctrl_camera_btn = ctk.CTkButton(
+            button_container,
+            text="📹",
+            width=50,
+            height=50,
+            corner_radius=25,
+            fg_color=colors["card"],
+            text_color=colors["fg"],
+            hover_color=colors["hover"],
+            font=("Segoe UI", 18),
+            command=self.toggle_camera
+        )
+        self.ctrl_camera_btn.pack(side="left", padx=10)
+        
+        # END button (main control)
+        self.end_btn = ctk.CTkButton(
+            button_container,
+            text="⏻ END",
+            width=100,
+            height=50,
+            corner_radius=25,
+            fg_color=colors.get("end_button", "#dc2626"),
+            text_color="#ffffff",
+            hover_color=colors.get("end_button_hover", "#b91c1c"),
+            font=("Consolas", 14, "bold"),
+            command=self.end_session
+        )
+        self.end_btn.pack(side="left", padx=10)
+        
+        # Microphone button
+        self.ctrl_mic_btn = ctk.CTkButton(
+            button_container,
+            text="🎤",
+            width=50,
+            height=50,
+            corner_radius=25,
+            fg_color=colors["card"],
+            text_color=colors["fg"],
+            hover_color=colors["hover"],
+            font=("Segoe UI", 18),
+            command=self.toggle_voice_input
+        )
+        self.ctrl_mic_btn.pack(side="left", padx=10)
+        
+        # Screen share button
+        self.ctrl_screen_btn = ctk.CTkButton(
+            button_container,
+            text="🖥️",
+            width=50,
+            height=50,
+            corner_radius=25,
+            fg_color=colors["card"],
+            text_color=colors["fg"],
+            hover_color=colors["hover"],
+            font=("Segoe UI", 18),
+            command=self.share_screen
+        )
+        self.ctrl_screen_btn.pack(side="left", padx=10)
+        
+        # Store reference
+        self.center_panel = center_panel
+    
+    def setup_transcript_panel(self, parent):
+        """Set up right panel with transcript/chat."""
+        colors = THEMES[self.theme]
+        
+        # Right panel container
+        right_panel = ctk.CTkFrame(
+            parent,
+            fg_color=colors["panel_bg"],
+            corner_radius=12,
+            border_width=1,
+            border_color=colors["border_glow"]
+        )
+        right_panel.grid(row=0, column=2, sticky="nsew", padx=(5, 10), pady=10)
+        
+        # Configure grid
+        right_panel.grid_rowconfigure(0, weight=0)  # Header
+        right_panel.grid_rowconfigure(1, weight=1)  # Chat
+        right_panel.grid_rowconfigure(2, weight=0)  # Input
+        right_panel.grid_columnconfigure(0, weight=1)
+        
+        # Header
+        header_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
+        header_frame.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
+        
+        ctk.CTkLabel(
+            header_frame,
+            text="📝 TRANSCRIPT",
+            font=("Consolas", 11, "bold"),
+            text_color=colors["accent"]
+        ).pack(side="left")
+        
+        # Chat scrollable area - THIS IS THE MAIN CHAT FRAME
+        self.chat_scrollable_frame = ctk.CTkScrollableFrame(
+            right_panel,
+            fg_color="transparent",
+            corner_radius=0
+        )
+        self.chat_scrollable_frame.grid(row=1, column=0, sticky="nsew", padx=8, pady=4)
+        
+        # Store reference (used by other parts of the code)
+        self.right_panel = right_panel
+    
+    def setup_footer(self):
+        """Footer removed as per user request."""
+        pass
+    
+    def end_session(self):
+        """End the current session - stop listening and speaking."""
+        if self.speaking:
+            self.stop_speaking()
+        if self.listening:
+            self.stop_listening()
+        self.add_to_chat("System", "Session ended.", "system")
+    
+    def share_screen(self):
+        """Share screen functionality placeholder."""
+        self.add_to_chat("System", "Screen sharing not yet implemented.", "system")
+    
+    def _set_orb_voice_active(self, active):
+        """Thread-safe method to control orb voice animation state."""
+        try:
+            if hasattr(self, 'core_orb') and self.core_orb:
+                # Use after() to safely update from main thread
+                self.root.after(0, lambda: self.core_orb.set_voice_active(active))
+        except Exception:
+            pass
+
+
+
+    def setup_top_appbar(self):
+        colors = THEMES[self.theme]
+        bar = ctk.CTkFrame(self.container, fg_color=colors["card"], height=48, corner_radius=0)
+        bar.pack(fill="x")
+        bar.pack_propagate(False)
+        left = ctk.CTkFrame(bar, fg_color="transparent")
+        left.pack(side="left", padx=16, pady=8)
+        menu_btn = ctk.CTkButton(left, text="☰", width=36, height=28, corner_radius=6,
+                                 fg_color=colors["btnbg"], text_color=colors["fg"],
+                                 hover_color=colors["btnbg_hover"], command=self.open_control_panel)
+        menu_btn.pack(side="left")
+        logo = ctk.CTkLabel(left, text="S", width=28, height=28,
+                            font=("Segoe UI", 16, "bold"), text_color="#ffffff",
+                            fg_color=colors["accent"])
+        logo.pack(side="left", padx=(12, 8))
+        title = ctk.CTkLabel(left, text="SAM", font=("Segoe UI", 14, "bold"), text_color=colors["fg"])
+        title.pack(side="left")
+        subtitle = ctk.CTkLabel(left, text="Smart AI Manager", font=("Segoe UI", 11), text_color=colors["subfg"])
+        subtitle.pack(side="left", padx=(8, 0))
+        right = ctk.CTkFrame(bar, fg_color="transparent")
+        right.pack(side="right", padx=16)
+        online = ctk.CTkLabel(right, text="● ONLINE", font=("Segoe UI", 11), text_color=colors["success"])
+        online.pack(side="right")
     
     def setup_right_panel(self):
         """Set up the right panel with temporal and network information like in the video."""
@@ -2054,7 +3651,7 @@ class EnhancedJarvisGUI:
         
         # Right panel container
         self.right_panel = ctk.CTkFrame(
-            self.main_frame,
+            self.container.winfo_children()[-1],
             fg_color=colors["temporal_bg"],
             width=280,
             corner_radius=0
@@ -2197,6 +3794,57 @@ class EnhancedJarvisGUI:
         # Start updating temporal and network info
         self.update_temporal_info()
         self.update_network_info()
+        self.setup_notifications_card(right_container)
+
+    def setup_notifications_card(self, parent):
+        colors = THEMES[self.theme]
+        card = ctk.CTkFrame(parent, fg_color=colors["card"], corner_radius=12)
+        card.pack(fill="x", pady=(10,0))
+        hdr = ctk.CTkFrame(card, fg_color="transparent")
+        hdr.pack(fill="x", padx=12, pady=(10,6))
+        ctk.CTkLabel(hdr, text="Notifications", font=("Segoe UI", 14, "bold"), text_color=colors["fg"]).pack(side="left")
+        self.notif_badge = ctk.CTkLabel(hdr, text="0", width=26, height=22, fg_color=colors["accent"], text_color="#ffffff")
+        self.notif_badge.pack(side="right")
+        self.notif_list = ctk.CTkScrollableFrame(card, fg_color="transparent")
+        self.notif_list.pack(fill="x", padx=12, pady=(0,10))
+        btn = ctk.CTkButton(card, text="Mark All as Read", fg_color=colors["btnbg"], text_color=colors["fg"], hover_color=colors["btnbg_hover"], command=self._mark_all_notifs_read)
+        btn.pack(fill="x", padx=12, pady=(0,10))
+        self.notifications = []
+
+    def add_notification(self, title, body):
+        colors = THEMES[self.theme]
+        self.notifications.append({"title": title, "body": body, "time": datetime.datetime.now().strftime("%I:%M %p")})
+        for w in self.notif_list.winfo_children():
+            w.destroy()
+        for n in self.notifications[-6:]:
+            row = ctk.CTkFrame(self.notif_list, fg_color=colors["glass"], corner_radius=8)
+            row.pack(fill="x", pady=6)
+            ctk.CTkLabel(row, text=n["title"], font=("Segoe UI", 12, "bold"), text_color=colors["fg"]).pack(anchor="w", padx=10, pady=(6,0))
+            ctk.CTkLabel(row, text=n["body"], font=("Segoe UI", 11), text_color=colors["subfg"]).pack(anchor="w", padx=10)
+            ctk.CTkLabel(row, text=n["time"], font=("Segoe UI", 10), text_color=colors["subfg"]).pack(anchor="w", padx=10, pady=(0,6))
+        self.notif_badge.configure(text=str(len(self.notifications)))
+
+    def _mark_all_notifs_read(self):
+        self.notifications = []
+        for w in self.notif_list.winfo_children():
+            w.destroy()
+        self.notif_badge.configure(text="0")
+
+    def open_control_panel(self):
+        colors = THEMES[self.theme]
+        panel = ctk.CTkToplevel(self.root)
+        panel.title("Control Panel")
+        panel.geometry("340x540")
+        panel.transient(self.root)
+        panel.grab_set()
+        container = ctk.CTkFrame(panel, fg_color=colors["card"])
+        container.pack(fill="both", expand=True)
+        ctk.CTkLabel(container, text="Control Panel", font=("Segoe UI", 16, "bold"), text_color=colors["fg"]).pack(anchor="w", padx=16, pady=(16,8))
+        items = ["Settings", "Agent", "Background", "Custom Hotword", "Custom Command", "Help", "About", "Updates"]
+        for it in items:
+            row = ctk.CTkFrame(container, fg_color=colors["glass"], corner_radius=8)
+            row.pack(fill="x", padx=16, pady=6)
+            ctk.CTkLabel(row, text=it, font=("Segoe UI", 12), text_color=colors["fg"]).pack(anchor="w", padx=12, pady=10)
     
     def update_temporal_info(self):
         """Update temporal information display safely."""
@@ -2643,81 +4291,120 @@ class EnhancedJarvisGUI:
 
     def setup_chat_area(self) -> None:
         """
-        Set up the chat area with Copilot-style design and modern chat bubbles.
+        Set up the chat area with modern sleek design and refined chat bubbles.
         """
         colors = THEMES[self.theme]
         
-        # Chat header
+        # Modern chat header with rounded top corners
         chat_header = ctk.CTkFrame(
             self.center_panel, 
             fg_color=colors["card"], 
-            height=60, 
-            corner_radius=0
+            height=64, 
+            corner_radius=16,
+            border_width=1,
+            border_color=colors.get("glass_border", colors["input_border"])
         )
-        chat_header.pack(fill="x")
+        chat_header.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, 4))
         chat_header.pack_propagate(False)
         
-        # Header content
+        # Header content with better spacing
         header_left = ctk.CTkFrame(chat_header, fg_color="transparent")
-        header_left.pack(side="left", fill="y", padx=20, pady=10)
+        header_left.pack(side="left", fill="y", padx=24, pady=12)
+        
+        # Title with icon
+        title_row = ctk.CTkFrame(header_left, fg_color="transparent")
+        title_row.pack(anchor="w")
         
         ctk.CTkLabel(
-            header_left, 
+            title_row,
+            text="💬",
+            font=("SF Pro Display", 18) if platform.system() == "Darwin" else ("Segoe UI", 18),
+            text_color=colors["accent"]
+        ).pack(side="left", padx=(0, 8))
+        
+        ctk.CTkLabel(
+            title_row, 
             text="Chat with SAM",
-            font=("Segoe UI", 16, "bold"), 
+            font=("SF Pro Display", 17, "bold") if platform.system() == "Darwin" else ("Segoe UI", 17, "bold"), 
             text_color=colors["fg"]
-        ).pack(anchor="w")
+        ).pack(side="left")
         
         self.chat_status = ctk.CTkLabel(
             header_left, 
-            text="Ready to assist",
-            font=("Segoe UI", 11), 
+            text="● Ready to assist",
+            font=("SF Pro Display", 12) if platform.system() == "Darwin" else ("Segoe UI", 12), 
             text_color=colors["success"]
         )
-        self.chat_status.pack(anchor="w")
+        self.chat_status.pack(anchor="w", pady=(4, 0))
         
-        # Header right controls
+        # Header right controls with modern pill buttons
         header_right = ctk.CTkFrame(chat_header, fg_color="transparent")
-        header_right.pack(side="right", fill="y", padx=20, pady=10)
+        header_right.pack(side="right", fill="y", padx=24, pady=12)
         
+        # Clear button with modern styling
         clear_btn = ctk.CTkButton(
             header_right, 
-            text="Clear",
-            font=("Segoe UI", 11), 
-            fg_color=colors["warning"], 
-            text_color=colors["bg"],
+            text="🗑️ Clear",
+            font=("SF Pro Display", 11) if platform.system() == "Darwin" else ("Segoe UI", 11), 
+            fg_color=colors["btnbg"], 
+            text_color=colors["error"],
             hover_color=colors["hover"], 
             command=self.clear_chat, 
-            corner_radius=6
+            corner_radius=20,  # Pill shape
+            height=32,
+            width=80
         )
-        clear_btn.pack(side="right", padx=5)
+        clear_btn.pack(side="right", padx=(8, 0))
         
+        # Export button
         export_btn = ctk.CTkButton(
             header_right, 
-            text="Export",
-            font=("Segoe UI", 11), 
+            text="📥 Export",
+            font=("SF Pro Display", 11) if platform.system() == "Darwin" else ("Segoe UI", 11), 
             fg_color=colors["btnbg"], 
-            text_color=colors["btnfg"],
-            hover_color=colors["btnactive"], 
+            text_color=colors["subfg"],
+            hover_color=colors["hover"], 
             command=self.export_chat, 
-            corner_radius=6
+            corner_radius=20,
+            height=32,
+            width=80
         )
-        export_btn.pack(side="right", padx=5)
+        export_btn.pack(side="right", padx=0)
         
         # Chat container with scrollable frame
-        chat_container = ctk.CTkFrame(
-            self.main_frame, 
-            fg_color=colors["chat_bg"]
-        )
-        chat_container.pack(fill="both", expand=True)
+        chat_container = ctk.CTkFrame(self.center_panel, fg_color=colors["chat_bg"])
+        chat_container.grid(row=1, column=0, sticky="nsew")
+        chat_container.grid_rowconfigure(0, weight=1)  # Allow content to expand
+        chat_container.grid_columnconfigure(0, weight=1)
         
-        # Create scrollable frame for chat bubbles
+        # Create scrollable frame for chat bubbles - use grid for proper expansion
         self.chat_scrollable_frame = ctk.CTkScrollableFrame(
             chat_container,
             fg_color=colors["chat_bg"],
             corner_radius=0
         )
-        self.chat_scrollable_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        self.chat_scrollable_frame.grid(row=0, column=0, sticky="nsew", padx=16, pady=10)
+
+        # Always-visible scrollbar for chat area + mouse wheel support
+        try:
+            canvas = getattr(self.chat_scrollable_frame, "_parent_canvas", None)
+            if canvas:
+                self.chat_scrollbar = ctk.CTkScrollbar(
+                    chat_container,
+                    command=canvas.yview,
+                    fg_color=colors["card"],
+                    button_color=colors["accent"],
+                    button_hover_color=colors["accent_hover"],
+                )
+                self.chat_scrollbar.pack(side="right", fill="y", padx=(0, 10), pady=10)
+                canvas.configure(yscrollcommand=self.chat_scrollbar.set)
+
+                # Bind wheel events for consistent scrolling across platforms
+                canvas.bind("<MouseWheel>", self._on_chat_wheel)
+                canvas.bind("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+                canvas.bind("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
+        except Exception:
+            pass
 
         # Planner step panel (hidden by default, shown when multi-intent runs)
         try:
@@ -2729,190 +4416,115 @@ class EnhancedJarvisGUI:
 
     def setup_input_area(self) -> None:
         """
-        Set up the modern AI input area with proper text input, scrollbar, and control buttons.
+        Set up the modern AI input area with unified island design.
         """
         colors = THEMES[self.theme]
         
-        # Main input container
-        input_container = ctk.CTkFrame(
-            self.main_frame, 
-            fg_color=colors["bg"]
-        )
-        # Reduce overall vertical footprint of input area
-        input_container.pack(fill="x", padx=20, pady=(8, 10))
-        
-        # AI status indicator
-        status_frame = ctk.CTkFrame(input_container, fg_color="transparent")
-        status_frame.pack(fill="x", pady=(0, 6))
-        
-        # AI brain icon with status
-        ai_status = ctk.CTkFrame(status_frame, fg_color="transparent")
-        ai_status.pack(side="left")
-        
-        ai_icon = ctk.CTkLabel(
-            ai_status,
-            text="🧠",
-            font=("Segoe UI", 16),
-            text_color=colors["accent"]
-        )
-        ai_icon.pack(side="left", padx=(0, 8))
-        
-        self.status_text = ctk.CTkLabel(
-            ai_status,
-            text="SAM AI is ready to assist",
-            font=("Segoe UI", 11),
-            text_color=colors["success"]
-        )
-        self.status_text.pack(side="left")
+        # Main input container - placed in right transcript panel
+        input_container = ctk.CTkFrame(self.right_panel, fg_color="transparent")
+        input_container.grid(row=2, column=0, sticky="ew", padx=8, pady=(4, 12))
         
         # Voice visualizer (hidden by default)
         self.voice_visualizer = VoiceVisualizer(
             input_container,
             theme=self.theme
         )
-        self.voice_visualizer.pack(fill="x", pady=(0, 10))
-        self.voice_visualizer.pack_forget()  # Hide initially
+        self.voice_visualizer.pack(fill="x", pady=(0, 8))
+        self.voice_visualizer.pack_forget()
         
-        # Text input frame
-        input_frame = ctk.CTkFrame(
+        # Unified Input Bar (The Island)
+        self.input_frame = ctk.CTkFrame(
             input_container, 
-            fg_color="transparent", 
-            corner_radius=0,
-            border_width=0,
-            border_color=colors["border_glow"]
+            fg_color=colors["card"], 
+            corner_radius=20,
+            border_width=1,
+            border_color=colors.get("glass_border", colors["input_border"]),
+            height=44
         )
-        # Slightly tighter spacing below the input frame
-        input_frame.pack(fill="x", pady=(0, 8))
+        self.input_frame.pack(fill="x", anchor="center")
         
-        # Text input and scrollbar container
-        text_container = ctk.CTkFrame(input_frame, fg_color="transparent")
-        # Compact padding around the text input; let container size to content
-        text_container.pack(fill="x", padx=8, pady=4)
+        # Inner packing for the island
+        # Left: Attach (+)
+        self.attach_btn = ctk.CTkButton(
+            self.input_frame,
+            text="+",
+            width=36,
+            height=36,
+            corner_radius=18,
+            fg_color="transparent",
+            text_color=colors["subfg"],
+            hover_color=colors["hover"],
+            font=("Segoe UI", 20),
+            command=self.open_file_browser
+        )
+        self.attach_btn.pack(side="left", padx=(8, 4), pady=4)
         
-        # Text input with proper height
-        # Make the text input shorter to avoid an oversized appearance
+        # Center: Text Input
         self.input_entry = ctk.CTkTextbox(
-            text_container,
-            font=("Segoe UI", 13), 
-            fg_color=colors["entrybg"],
-            text_color=colors["inputfg"], 
+            self.input_frame,
+            font=("SF Pro Display", 14) if platform.system() == "Darwin" else ("Segoe UI", 14), 
+            fg_color="transparent",
+            text_color=colors["fg"], 
             border_width=0,
-            corner_radius=12,
-            height=22,  # Further reduced height for compact input
-            wrap="word"
+            height=40,
+            wrap="word",
+            activate_scrollbars=False
         )
-        # Do not expand vertically; keep compact height
-        self.input_entry.pack(side="left", fill="x", padx=(0, 10))
+        self.input_entry.pack(side="left", fill="x", expand=True, padx=8, pady=6)
         
-        # Scrollbar for text input
-        text_scrollbar = ctk.CTkScrollbar(
-            text_container,
-            command=self.input_entry.yview,
-            fg_color=colors["entrybg"],
-            button_color=colors["accent"],
-            button_hover_color=colors["accent_hover"]
-        )
-        # Hide scrollbar for a cleaner look; it can be shown later if needed
-        # text_scrollbar.pack(side="right", fill="y")
-        
-        # Configure text widget to use scrollbar
-        self.input_entry.configure(yscrollcommand=text_scrollbar.set)
-        
-        # Add placeholder text
-        self.input_entry.insert("1.0", "💬 Ask SAM anything... (Press Enter to send)")
+        # Bind keys
         self.input_entry.bind("<KeyPress>", self.on_input_key_press)
-        self.input_entry.bind("<FocusIn>", self.on_input_focus_in)
-        self.input_entry.bind("<FocusOut>", self.on_input_focus_out)
         
-        self.placeholder_text = "💬 Ask SAM anything... (Press Enter to send)"
-        self.show_placeholder()
+        # Right: Mic & Send
         
-        # Control buttons frame - SIMPLIFIED LAYOUT
-        buttons_frame = ctk.CTkFrame(
-            input_container, 
-            fg_color=colors["bg"]
-        )
-        buttons_frame.pack(fill="x", pady=(0, 6))
-        
-        # Quick suggestions on the left
-        suggestions_frame = ctk.CTkFrame(buttons_frame, fg_color="transparent")
-        suggestions_frame.pack(side="left", fill="x", expand=True, pady=5)
-        
-        suggestions = ["🌤️ Weather", "🧮 Calculate", "🔍 Search", "💻 System", "🧭 Navigate", "✨ Multi‑step"]
-        for suggestion in suggestions:
-            chip = ctk.CTkButton(
-                suggestions_frame,
-                text=suggestion,
-                font=("Segoe UI", 10),
-                fg_color=colors["glass"],
-                text_color=colors["fg"],
-                hover_color=colors["hover"],
-                corner_radius=16,
-                height=26,
-                command=lambda s=suggestion: self._quick_suggestion(s)
-            )
-            chip.pack(side="left", padx=(0, 8))
-        
-        # Control buttons on the right - SIMPLIFIED
-        controls_frame = ctk.CTkFrame(buttons_frame, fg_color="transparent")
-        controls_frame.pack(side="right", pady=4)
-        
-        # Voice button
+        # Mic Button
         self.voice_btn = ctk.CTkButton(
-            controls_frame, 
-            text="🎤 Voice",
-            font=("Segoe UI", 11, "bold"),
-            command=self.toggle_voice_input, 
-            fg_color=colors["success"],
-            hover_color=colors["success_hover"],
-            height=30,
-            corner_radius=8,
-            width=72
+            self.input_frame, 
+            text="🎤",
+            font=("Segoe UI", 16),
+            width=36,
+            height=36,
+            corner_radius=18,
+            fg_color="transparent",
+            text_color=colors["subfg"],  # Default color
+            hover_color=colors["hover"],
+            command=self.toggle_voice_input
         )
-        self.voice_btn.pack(side="left", padx=(0, 5))
+        self.voice_btn.pack(side="right", padx=(2, 4), pady=4)
         
-        # Send button
+        # Initialize placeholder text attribute to avoid errors
+        self.placeholder_text = ""
+        
+        # Send Button 
         self.send_btn = ctk.CTkButton(
-            controls_frame, 
-            text="📤 Send",
-            font=("Segoe UI", 11, "bold"),
-            command=self.on_user_input, 
+            self.input_frame, 
+            text="➤",
+            font=("Segoe UI", 14),
+            width=36,
+            height=36,
+            corner_radius=18,
             fg_color=colors["accent"],
+            text_color="#ffffff",
             hover_color=colors["accent_hover"],
-            height=30,
-            corner_radius=8,
-            width=72
+            command=self.process_input
         )
-        self.send_btn.pack(side="left", padx=(0, 5))
+        self.send_btn.pack(side="right", padx=(4, 8), pady=4)
         
-        # Stop button
-        self.stop_btn = ctk.CTkButton(
-            controls_frame, 
-            text="⏹️ Stop",
-            font=("Segoe UI", 11, "bold"),
-            command=self.stop_speech, 
-            fg_color=colors["error"],
-            hover_color=colors["error_hover"],
-            height=30,
-            corner_radius=8,
-            width=72
-        )
-        self.stop_btn.pack(side="left", padx=(0, 5))
-        
-        # Initially disable stop button
-        self.stop_btn.configure(state="disabled")
 
-        # Tip hint for multi-step commands
-        tip_frame = ctk.CTkFrame(input_container, fg_color="transparent")
-        tip_frame.pack(fill="x", pady=(2, 0))
-        tip_label = ctk.CTkLabel(
-            tip_frame,
-            text="Tip: Chain steps with 'and' or ',' e.g. open youtube and play a song and open google and search cats",
-            font=("Segoe UI", 10),
-            text_color=colors["subfg"]
-        )
-        tip_label.pack(anchor="w", padx=8)
+
     
+    def open_file_browser(self):
+        """Open file browser to attach files."""
+        from tkinter import filedialog
+        file_path = filedialog.askopenfilename()
+        if file_path:
+            self.input_entry.insert("end", f" [Attached: {os.path.basename(file_path)}] ")
+            self.add_to_chat("System", f"File attached: {file_path}", "system")
+
+    def process_input(self):
+        """Process the user input from the text box."""
+        self.on_user_input()
+
     def on_input_key_press(self, event):
         """Handle key presses in the text input."""
         if event.keysym == "Return" and not event.state & 0x1:  # Return without Shift
@@ -3309,8 +4921,8 @@ class EnhancedJarvisGUI:
             timestamp=timestamp
         )
         
-        # Scroll to bottom
-        self.chat_scrollable_frame._parent_canvas.yview_moveto(1.0)
+        # Schedule scroll to bottom after widget is rendered
+        self.root.after(50, self._scroll_to_bottom)
         
         # Store in conversation history
         self.conversation_history.append({
@@ -3336,6 +4948,35 @@ class EnhancedJarvisGUI:
         # Show toast notification for errors
         if msg_type == "error":
             ModernPopup(self.root, "Error", message)
+
+    def _on_chat_wheel(self, event):
+        try:
+            canvas = getattr(self.chat_scrollable_frame, "_parent_canvas", None)
+            if not canvas:
+                return
+            delta = event.delta
+            # Normalize delta across platforms
+            step = -1 if delta > 0 else 1
+            canvas.yview_scroll(step, "units")
+        except Exception:
+            pass
+
+    def _maybe_scroll_to_bottom(self):
+        """Legacy method - redirects to _scroll_to_bottom."""
+        self._scroll_to_bottom()
+
+    def _scroll_to_bottom(self):
+        """Force scroll chat to bottom to show latest message."""
+        try:
+            canvas = getattr(self.chat_scrollable_frame, "_parent_canvas", None)
+            if not canvas:
+                return
+            # Force update to ensure new widgets are rendered
+            self.chat_scrollable_frame.update_idletasks()
+            # Scroll to absolute bottom
+            canvas.yview_moveto(1.0)
+        except Exception as e:
+            print(f"Scroll error: {e}")
 
     def on_user_input(self):
         """Handle user input from text entry or send button."""
@@ -3401,7 +5042,8 @@ class EnhancedJarvisGUI:
             'help', 'clear', 'weather', 'time', 'date', 'system', 'screenshot',
             'music', 'notes', 'calc', 'web', 'news', 'ascii', 'hello', 'hi',
             'thanks', 'thank you', 'bye', 'goodbye', 'what can you do', 'who are you',
-            'open', 'play', 'generate', 'code', '3d', 'model', 'viewer'  # Add 3D model commands
+            'open', 'play', 'generate', 'code', '3d', 'model', 'viewer',
+            'analyze screen', 'what\'s on my screen', 'read screen', 'screen analysis'  # Screen analysis
         ]
         return any(cmd in command_lower for cmd in quick_commands)
     
@@ -3422,6 +5064,8 @@ class EnhancedJarvisGUI:
                 response = f"📅 Today's date: {datetime.datetime.now().strftime('%B %d, %Y')}"
             elif 'system' in command_lower:
                 response = self.get_detailed_system_info()
+            elif any(phrase in command_lower for phrase in ['analyze screen', 'what\'s on my screen', 'read screen', 'screen analysis', 'what is on my screen']):
+                response = self.analyze_screen()
             elif 'screenshot' in command_lower:
                 response = self.take_screenshot()
             elif 'music' in command_lower:
@@ -3480,17 +5124,38 @@ class EnhancedJarvisGUI:
             self.root.after(0, lambda: self.display_response(response))
 
     def intelligent_open_command(self, command_lower):
-        """Intelligent application opening with search-first approach like in the video."""
+        """Fast application opening with direct routes for settings, apps, and folders."""
         try:
             # Extract the target from "open [target]" command
             if 'open' in command_lower:
                 target = command_lower.replace('open', '').strip()
                 
-                # Show searching animation first
-                self.add_to_chat("SAM", f"🔍 Searching for '{target}'...", "system")
-                
-                # Simulate search delay for better UX
-                self.root.after(1000, lambda: self._execute_intelligent_open(target))
+                tl = target.lower().strip()
+                if 'settings' in tl:
+                    sec = None
+                    msec = re.search(r'settings\s+(?:for|about)\s+(\w+)', tl)
+                    if msec:
+                        sec = msec.group(1)
+                    return self.fast_nav.open_settings(sec)
+
+                if tl.startswith('file '):
+                    q = tl.replace('file', '').strip()
+                    return self.open_file_human_like(q, kind='file')
+
+                if tl.startswith('folder '):
+                    q = tl.replace('folder', '').strip()
+                    return self.open_file_human_like(q, kind='folder')
+
+                m_with = re.search(r"(file|document)\s+(.+?)\s+with\s+([\w\s]+)$", tl)
+                if m_with:
+                    q = m_with.group(2).strip()
+                    app = m_with.group(3).strip()
+                    return self.open_file_human_like(q, kind='file', open_with=app)
+                if any(ext in tl for ext in ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.png', '.jpg', '.jpeg', '.gif', '.txt']):
+                    q = target.strip()
+                    return self.open_file_human_like(q, kind='file')
+
+                return self._execute_intelligent_open(target)
 
                 # If command also includes a YouTube play clause, trigger playback shortly after open
                 try:
@@ -3501,7 +5166,7 @@ class EnhancedJarvisGUI:
                 except Exception:
                     pass
                 
-                return f"🔍 Searching for '{target}'... Please wait."
+                return f"✅ Opening '{target}'"
             
             return "❓ Please specify what you want to open. Try: 'open recycle bin', 'open notepad', etc."
             
@@ -3509,7 +5174,7 @@ class EnhancedJarvisGUI:
             return f"❌ Error: {str(e)}"
 
     def _execute_intelligent_open(self, target):
-        """Execute the intelligent opening after search simulation."""
+        """Execute opening with fast paths and direct actions."""
         try:
             target_lower = target.lower()
             typo_map = {
@@ -3533,7 +5198,6 @@ class EnhancedJarvisGUI:
                 self.add_to_chat("SAM", result, "system")
                 return result
             
-            # Windows applications with intelligent search
             if any(app in target_lower for app in ['recycle', 'bin', 'trash']):
                 subprocess.Popen(['explorer.exe', 'shell:RecycleBinFolder'])
                 self.add_to_chat("SAM", f"🗑️ Opening Recycle Bin...", "system")
@@ -3554,7 +5218,17 @@ class EnhancedJarvisGUI:
                 self.add_to_chat("SAM", f"🎨 Opening Paint...", "system")
                 return "🎨 Paint opened successfully!"
                 
-            elif any(app in target_lower for app in ['explorer', 'file', 'folder']):
+            elif platform.system().lower() == 'darwin' and any(app in target_lower for app in ['safari','chrome','terminal','finder','notes']):
+                app = 'safari' if 'safari' in target_lower else ('chrome' if 'chrome' in target_lower else ('terminal' if 'terminal' in target_lower else ('finder' if 'finder' in target_lower else 'notes')))
+                res = self.fast_nav.open_app(app)
+                try:
+                    if hasattr(self, 'memory_manager'):
+                        self.memory_manager.add_recent_app(app)
+                except Exception:
+                    pass
+                return res
+
+            elif any(app in target_lower for app in ['explorer']):
                 subprocess.Popen(['explorer.exe'])
                 self.add_to_chat("SAM", f"📁 Opening File Explorer...", "system")
                 return "📁 File Explorer opened successfully!"
@@ -3738,7 +5412,26 @@ class EnhancedJarvisGUI:
                 return "📅 Google Calendar opened successfully!"
             
             else:
-                # Try to open as a website
+                if 'folder' in target_lower:
+                    q = target_lower.replace('folder', '').strip()
+                    if platform.system().lower() == 'darwin':
+                        res = self.fast_nav.open_folder(q)
+                        try:
+                            if hasattr(self, 'memory_manager'):
+                                self.memory_manager.add_recent_file(q)
+                        except Exception:
+                            pass
+                        return res
+                    res = self.open_file_human_like(q, kind='folder')
+                    try:
+                        if hasattr(self, 'memory_manager'):
+                            self.memory_manager.add_recent_file(q)
+                    except Exception:
+                        pass
+                    return res
+                q = target.strip()
+                if any(ext in q.lower() for ext in ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.png', '.jpg', '.jpeg', '.gif', '.txt']):
+                    return self.open_file_human_like(q, kind='file')
                 if not target.startswith('http'):
                     domain = target.split()[0]
                     if getattr(self, 'automation_strategy', 'direct') == 'simulate' and hasattr(self, 'system_launcher'):
@@ -3840,9 +5533,44 @@ class EnhancedJarvisGUI:
         start_time = time.time()
         try:
             command_lower = command.lower().strip()
+            try:
+                if hasattr(self, 'memory_manager'):
+                    self.memory_manager.add_recent_command(command)
+            except Exception:
+                pass
             if hasattr(self, 'logger'):
                 self.logger.info(f"Processing command: {command_lower}")
+
+            # Origin/creator questions handled explicitly
+            origin_patterns = [
+                r"who\s+made\s+(you|sam)",
+                r"who\s+created\s+(you|sam)",
+                r"who\s+invented\s+(you|sam)",
+                r"your\s+creator",
+                r"who\s+is\s+your\s+creator",
+                r"who\s+developed\s+(you|sam)",
+            ]
+            if any(re.search(p, command_lower) for p in origin_patterns):
+                response = f"👨‍💻 I was created and built by {self.creator_name}."
+                self._track_performance(start_time, "ai")
+                self.root.after(0, lambda: self.display_response(response))
+                return response
             
+            mname = re.search(r"\bmy\s+name\s+is\s+([\w\s]+)$", command_lower)
+            if mname:
+                name = mname.group(1).strip().title()
+                if hasattr(self, 'memory_manager'):
+                    self.memory_manager.set_name(name)
+                self.username = name
+                try:
+                    self.save_profile()
+                except Exception:
+                    pass
+                response = f"👌 Got it, {name}. I’ll remember your name."
+                self._track_performance(start_time, "ai")
+                self.root.after(0, lambda: self.display_response(response))
+                return response
+
             # ⚡ Ultra-fast quick command detection
             if self._is_quick_command(command_lower):
                 response = self._process_quick_command(command_lower)
@@ -3879,6 +5607,8 @@ class EnhancedJarvisGUI:
                     response = self._handle_media_command(command)
                 elif command_type == "email":
                     response = self._handle_email_command(command)
+                elif command_type == "whatsapp":
+                    response = self._handle_whatsapp_command(command)
                 elif command_type == "3d_model":
                     response = self._handle_3d_model_command(command)
                 else:
@@ -4012,9 +5742,13 @@ class EnhancedJarvisGUI:
         if any(keyword in command_lower for keyword in media_keywords):
             return "media"
         
-        # Email commands
-        email_keywords = ['email', 'gmail', 'send', 'mail']
-        if any(keyword in command_lower for keyword in email_keywords):
+        # WhatsApp commands (check before email to catch "send whatsapp" before "send")
+        if 'whatsapp' in command_lower or ('wa' in command_lower.split() and any(w in command_lower for w in ['send', 'message', 'msg'])):
+            return "whatsapp"
+        
+        # Email commands (exclude whatsapp to prevent conflict)
+        email_keywords = ['email', 'gmail', 'mail']
+        if any(keyword in command_lower for keyword in email_keywords) and 'whatsapp' not in command_lower:
             return "email"
         
         # Default to AI processing
@@ -4143,144 +5877,93 @@ class EnhancedJarvisGUI:
         else:
             return self.get_detailed_system_info()
 
-    # ===== System control helpers =====
+    # ===== System control helpers (Cross-platform) =====
     def _get_volume_controller(self):
-        """Try to obtain a volume controller via pycaw. Returns (endpoint, interface) or (None, None)."""
-        try:
-            from comtypes import CLSCTX_ALL
-            from ctypes import POINTER, cast
-            from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-            devices = AudioUtilities.GetSpeakers()
-            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-            volume = cast(interface, POINTER(IAudioEndpointVolume))
-            return devices, volume
-        except Exception:
-            return None, None
+        """Legacy compatibility wrapper. Now uses platform_utils for cross-platform support."""
+        # Return None to indicate we're using the new cross-platform methods
+        return None, None
 
     def _set_system_volume_percent(self, percent: int):
-        devices, volume = self._get_volume_controller()
-        if volume is not None:
-            try:
-                # Range is 0.0 to 1.0
-                volume.SetMasterVolumeLevelScalar(percent / 100.0, None)
-                return True, ""
-            except Exception as e:
-                return False, f"Failed to set volume: {e}"
-        return False, "Exact volume setting requires 'pycaw'. Please install it (pip install pycaw) to enable precise control, or use 'volume up/down/mute'."
+        """Set system volume using cross-platform utilities."""
+        try:
+            from core.platform_utils import set_volume
+            return set_volume(percent)
+        except ImportError:
+            return False, "Platform utilities not available."
+        except Exception as e:
+            return False, f"Failed to set volume: {e}"
 
     def _adjust_system_volume(self, direction: str, amount: int):
-        # Try precise control via pycaw first
-        devices, volume = self._get_volume_controller()
-        if volume is not None:
-            try:
-                current = volume.GetMasterVolumeLevelScalar() * 100.0
-                delta = amount if direction == 'up' else -amount
-                target = max(0, min(100, int(current + delta)))
-                volume.SetMasterVolumeLevelScalar(target / 100.0, None)
-                return True, ""
-            except Exception as e:
-                return False, f"Failed to adjust volume: {e}"
-        # Fallback: use key events (coarse control)
+        """Adjust system volume up or down using cross-platform utilities."""
         try:
-            import ctypes
-            VK_VOLUME_UP = 0xAF
-            VK_VOLUME_DOWN = 0xAE
-            key = VK_VOLUME_UP if direction == 'up' else VK_VOLUME_DOWN
-            steps = max(1, int(amount // 2))  # approx 2% per step
-            for _ in range(steps):
-                ctypes.windll.user32.keybd_event(key, 0, 0, 0)
-            return True, "(coarse control)"
+            from core.platform_utils import adjust_volume
+            return adjust_volume(direction, amount)
+        except ImportError:
+            return False, "Platform utilities not available."
         except Exception as e:
-            return False, f"Failed to adjust volume via key events: {e}"
+            return False, f"Failed to adjust volume: {e}"
 
     def _mute_system_volume(self, mute: bool):
-        devices, volume = self._get_volume_controller()
-        if volume is not None:
-            try:
-                volume.SetMute(1 if mute else 0, None)
-                return ""
-            except Exception as e:
-                return f"Failed to {'mute' if mute else 'unmute'}: {e}"
-        # Fallback: toggle mute key
+        """Mute or unmute system volume using cross-platform utilities."""
         try:
-            import ctypes
-            VK_VOLUME_MUTE = 0xAD
-            ctypes.windll.user32.keybd_event(VK_VOLUME_MUTE, 0, 0, 0)
-            return "(coarse control)"
+            from core.platform_utils import mute_volume
+            success, msg = mute_volume(mute)
+            return msg if not success else ""
+        except ImportError:
+            return "Platform utilities not available."
         except Exception as e:
-            return f"Failed to toggle mute via key events: {e}"
+            return f"Failed to {'mute' if mute else 'unmute'}: {e}"
 
     def _set_brightness_percent(self, percent: int):
-        # Use PowerShell WMI to set brightness (works for built-in displays)
-        import subprocess
+        """Set screen brightness using cross-platform utilities."""
         try:
-            cmd = f"(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1, {percent})"
-            r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd], capture_output=True, text=True)
-            if r.returncode == 0:
-                return True, ""
-            else:
-                return False, "Brightness control via WMI not supported on this display."
+            from core.platform_utils import set_brightness
+            return set_brightness(percent)
+        except ImportError:
+            return False, "Platform utilities not available."
         except Exception as e:
             return False, f"Failed to set brightness: {e}"
 
     def _get_current_brightness(self):
-        import subprocess
+        """Get current brightness using cross-platform utilities."""
         try:
-            cmd = "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness | Select-Object -ExpandProperty CurrentBrightness)"
-            r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd], capture_output=True, text=True)
-            if r.returncode == 0:
-                val = r.stdout.strip()
-                return int(val) if val.isdigit() else None
+            from core.platform_utils import get_brightness
+            return get_brightness()
+        except ImportError:
+            return None
         except Exception:
-            pass
-        return None
+            return None
 
     def _adjust_brightness(self, direction: str, amount: int):
-        current = self._get_current_brightness()
-        if current is None:
-            # Attempt relative change even without current value by best effort
-            baseline = 50
-            target = baseline + (amount if direction == 'up' else -amount)
-        else:
-            target = current + (amount if direction == 'up' else -amount)
-        target = max(0, min(100, target))
-        return self._set_brightness_percent(target)
+        """Adjust brightness up or down using cross-platform utilities."""
+        try:
+            from core.platform_utils import adjust_brightness
+            return adjust_brightness(direction, amount)
+        except ImportError:
+            return False, "Platform utilities not available."
+        except Exception as e:
+            return False, f"Failed to adjust brightness: {e}"
 
     def _switch_display_mode(self, mode: str):
-        import subprocess
-        exe = "DisplaySwitch.exe"
-        arg = {
-            'extend': '/extend',
-            'duplicate': '/clone',
-            'external': '/external',
-            'internal': '/internal'
-        }.get(mode)
-        if arg is None:
-            return False, "Unknown display mode"
+        """Switch display mode using cross-platform utilities."""
         try:
-            subprocess.Popen([exe, arg])
-            return True, ""
+            from core.platform_utils import switch_display_mode
+            return switch_display_mode(mode)
+        except ImportError:
+            return False, "Platform utilities not available."
         except Exception as e:
             return False, f"Failed to switch display: {e}"
 
     def _perform_power_action(self, action: str):
-        import subprocess
+        """Perform power action using cross-platform utilities."""
         try:
-            if action == 'shutdown':
-                subprocess.Popen(['shutdown', '/s', '/t', '0'])
-            elif action == 'restart':
-                subprocess.Popen(['shutdown', '/r', '/t', '0'])
-            elif action == 'sleep':
-                subprocess.Popen(['rundll32.exe', 'powrprof.dll,SetSuspendState', '0,1,0'])
-            elif action == 'hibernate':
-                subprocess.Popen(['shutdown', '/h'])
-            elif action == 'lock':
-                subprocess.Popen(['rundll32.exe', 'user32.dll,LockWorkStation'])
-            else:
-                return False, 'Unknown power action'
-            return True, ""
+            from core.platform_utils import power_action
+            return power_action(action)
+        except ImportError:
+            return False, "Platform utilities not available."
         except Exception as e:
             return False, f"Failed to execute power action: {e}"
+
     
     def _handle_search_command(self, command):
         """Handle search commands with instant results."""
@@ -4361,31 +6044,38 @@ class EnhancedJarvisGUI:
         return "🎵 Media command recognized. Please be more specific."
 
     def _play_on_youtube_direct(self, query: str):
+        """Play a song on YouTube using human-like automation."""
         try:
-            import requests
-            import re
-            import urllib.parse
-            import webbrowser
-            q = urllib.parse.quote(query)
-            url = f"https://www.youtube.com/results?search_query={q}"
-            headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari"}
-            r = requests.get(url, timeout=8, headers=headers)
-            m = re.search(r'"url":"/watch\?v=([^"]+?)"', r.text)
-            if not m:
-                m = re.search(r'/watch\?v=([\w-]{11})', r.text)
-            if m:
-                vid = m.group(1)
-                webbrowser.open(f"https://www.youtube.com/watch?v={vid}")
-                return f"🎬 Playing '{query}' on YouTube."
-            webbrowser.open(url)
-            return f"🔎 Couldn't resolve a video directly; opened search for '{query}'."
+            # Use human-like automation directly
+            self.add_to_chat("SAM", f"🎵 Opening YouTube and searching for '{query}'...", "system")
+            
+            yt = YouTubeAutomation(strategy="simulate")
+            
+            # Run the automation in a thread to not block the UI
+            def play_async():
+                try:
+                    result = yt.play_song(query)
+                    self.root.after(0, lambda: self.add_to_chat("SAM", result, "system"))
+                except Exception as e:
+                    # Fallback to direct URL if simulation fails
+                    import webbrowser, urllib.parse
+                    url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
+                    webbrowser.open(url)
+                    self.root.after(0, lambda: self.add_to_chat("SAM", f"🔎 Opened YouTube search for '{query}' (fallback)", "system"))
+            
+            import threading
+            threading.Thread(target=play_async, daemon=True).start()
+            
+            return f"🎬 Playing '{query}' on YouTube..."
+            
         except Exception as e:
+            # Last resort: just open the search URL
             try:
                 import webbrowser, urllib.parse
                 webbrowser.open(f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}")
-            except Exception:
-                pass
-            return f"❌ Error launching YouTube playback: {e}"
+                return f"🔎 Opened YouTube search for '{query}'"
+            except:
+                return f"❌ Error: {e}"
     
     def _handle_vision_command(self, command):
         """Handle vision/camera commands with AI analysis."""
@@ -4467,6 +6157,82 @@ class EnhancedJarvisGUI:
                   "First, make sure Gmail is configured in Settings → Gmail Settings."
         
         return "📧 Email command not recognized. Please try a different format."
+    
+    def _handle_whatsapp_command(self, command):
+        """Handle WhatsApp messaging commands with human-like browser automation."""
+        try:
+            command_lower = command.lower().strip()
+            
+            # WhatsApp command patterns to match
+            # Pattern: send whatsapp to [name] saying [message]
+            # Pattern: whatsapp [name] [message]
+            # Pattern: message [name] on whatsapp [message]
+            # Pattern: send message to [name] on whatsapp [message]
+            
+            whatsapp_patterns = [
+                # "send whatsapp to Mom saying Hello there"
+                r'^send\s+(?:a\s+)?whatsapp\s+(?:message\s+)?to\s+(.+?)\s+(?:saying|message|msg|:)\s+(.+)$',
+                # "whatsapp Mom Hello there"
+                r'^whatsapp\s+(.+?)\s+(?:saying|message|msg|:)\s+(.+)$',
+                # "whatsapp Mom: Hello there"
+                r'^whatsapp\s+(.+?):\s+(.+)$',
+                # "message Mom on whatsapp Hello there"
+                r'^(?:send\s+)?message\s+(.+?)\s+(?:on|via|through)\s+whatsapp\s+(?:saying|message|msg|:)?\s*(.+)$',
+                # "send message to Mom on whatsapp saying Hello"
+                r'^send\s+(?:a\s+)?message\s+to\s+(.+?)\s+(?:on|via|through)\s+whatsapp\s+(?:saying|message|msg|:)?\s*(.+)$',
+                # Simple: "whatsapp Mom Hello" (name then message, separated by space after name)
+                r'^whatsapp\s+(\S+)\s+(.+)$',
+                # "wa Mom Hello" (shorthand)
+                r'^wa\s+(\S+)\s+(.+)$',
+                # "send wa to Mom saying Hello"
+                r'^send\s+wa\s+to\s+(.+?)\s+(?:saying|message|msg|:)\s+(.+)$',
+            ]
+            
+            contact_name = None
+            message = None
+            
+            for pattern in whatsapp_patterns:
+                match = re.match(pattern, command_lower, re.IGNORECASE)
+                if match:
+                    contact_name = match.group(1).strip()
+                    message = match.group(2).strip()
+                    break
+            
+            # If we found a match, send the message
+            if contact_name and message:
+                # Show progress in chat
+                self.add_to_chat("SAM", f"💬 Opening WhatsApp and sending message to {contact_name}...", "system")
+                
+                # Use the WhatsApp automation to send the message
+                if hasattr(self, 'whatsapp_automation'):
+                    result = self.whatsapp_automation.send_message(contact_name, message)
+                    return result
+                else:
+                    return "❌ WhatsApp automation is not available. Please restart SAM."
+            
+            # Handle "just open whatsapp" commands
+            if command_lower in ['open whatsapp', 'whatsapp', 'open wa', 'open whatsapp web']:
+                if hasattr(self, 'whatsapp_automation'):
+                    result = self.whatsapp_automation.open_whatsapp()
+                    return result
+                else:
+                    # Fallback: try to open app directly
+                    import subprocess
+                    subprocess.run(["open", "-a", "WhatsApp"], check=False)
+                    return "💬 WhatsApp app opened."
+            
+            # No pattern matched - show help
+            return ("💬 To send a WhatsApp message, try:\n\n"
+                    "• 'Send whatsapp to Mom saying Hello!'\n"
+                    "• 'Whatsapp John: Meeting at 5pm'\n"
+                    "• 'Message Sarah on whatsapp I'll be late'\n"
+                    "• 'WA Dad Call me when free'\n\n"
+                    "Note: WhatsApp desktop app must be installed and logged in.")
+                    
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.exception(f"Error in _handle_whatsapp_command: {e}")
+            return f"❌ Error processing WhatsApp command: {str(e)}"
 
     def display_response(self, response, msg_type="jarvis"):
         """Display SAM's response in the chat with typing indicator."""
@@ -4755,13 +6521,105 @@ class EnhancedJarvisGUI:
                 if exe_path:
                     subprocess.Popen([exe_path])
                     return f"🚀 {app_name.title()} opened successfully!"
-            else:
-                    return f"❌ Could not find or open '{app_name}'. Please make sure it is installed and added to PATH."
+                return f"❌ Could not find or open '{app_name}'. Please make sure it is installed and added to PATH."
 
             return "I can open any website (just say 'open facebook.com') or try to open any app by name (e.g., 'open whatsapp')."
         except Exception as e:
             print(f"Error in handle_file_operations: {e}")
             return f"Sorry, I couldn't open that application or website. Error: {str(e)}"
+
+    def open_file_human_like(self, query, open_with=None, scope=None, max_results=5, kind='file'):
+        q = str(query).strip().strip('"').strip("'")
+        self.add_to_chat("SAM", f"🔍 Searching for '{q}'", "system")
+        sysname = platform.system().lower()
+        if sysname == 'darwin':
+            matches = self._spotlight_search(q, scope, max_results, kind)
+            if not matches:
+                return f"❌ No files found for '{q}'"
+            choice = self._choose_best_match(matches)
+            if not choice:
+                return f"❌ No suitable match for '{q}'"
+            ok = self._mac_reveal_and_open(choice, app=open_with)
+            if ok:
+                return f"📂 Opened '{os.path.basename(choice)}'"
+            return f"❌ Failed to open '{os.path.basename(choice)}'"
+        home = os.path.expanduser('~')
+        search_roots = [p for p in [os.path.join(home, 'Downloads'), os.path.join(home, 'Documents'), os.path.join(home, 'Desktop'), os.path.join(home, 'Pictures'), os.path.join(home, 'Music'), os.path.join(home, 'Videos')] if os.path.isdir(p)]
+        patterns = [f"**/{q}", f"**/*{q}*"]
+        candidates = []
+        for root in search_roots:
+            for pat in patterns:
+                try:
+                    for p in glob.glob(os.path.join(root, pat), recursive=True):
+                        if kind == 'folder' and os.path.isdir(p):
+                            candidates.append(p)
+                        elif kind != 'folder' and os.path.isfile(p):
+                            candidates.append(p)
+                except Exception:
+                    pass
+        if not candidates:
+            return f"❌ No files found for '{q}'"
+        candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+        target = candidates[0]
+        if sysname.startswith('win'):
+            try:
+                os.startfile(target)
+                return f"📂 Opened '{os.path.basename(target)}'"
+            except Exception as e:
+                return f"❌ Failed to open '{target}': {e}"
+        elif sysname == 'linux':
+            try:
+                subprocess.Popen(['xdg-open', target])
+                return f"📂 Opened '{os.path.basename(target)}'"
+            except Exception as e:
+                return f"❌ Failed to open '{target}': {e}"
+        else:
+            try:
+                subprocess.Popen(['open', target])
+                return f"📂 Opened '{os.path.basename(target)}'"
+            except Exception as e:
+                return f"❌ Failed to open '{target}': {e}"
+
+    def _spotlight_search(self, query, scope=None, limit=10, kind='file'):
+        term = query.strip()
+        cmd = ['mdfind', f'kMDItemFSName == "*{term}*"c']
+        if scope and os.path.isdir(scope):
+            cmd = ['mdfind', '-onlyin', scope, f'kMDItemFSName == "*{term}*"c']
+        try:
+            out = subprocess.check_output(cmd, text=True)
+            lines = [l.strip() for l in out.splitlines() if l.strip()]
+            if kind == 'folder':
+                files = [p for p in lines if os.path.isdir(p)]
+            else:
+                files = [p for p in lines if os.path.isfile(p)]
+            files = files[:limit]
+            return files
+        except Exception:
+            return []
+
+    def _choose_best_match(self, paths):
+        try:
+            return sorted(paths, key=lambda p: os.path.getmtime(p), reverse=True)[0]
+        except Exception:
+            return paths[0] if paths else None
+
+    def _mac_reveal_and_open(self, path, app=None):
+        try:
+            script = f'tell application "Finder" to reveal POSIX file "{path}"'
+            subprocess.check_call(['osascript', '-e', script])
+            subprocess.check_call(['osascript', '-e', 'tell application "Finder" to activate'])
+            if app:
+                script2 = f'tell application "{app}" to open POSIX file "{path}"'
+                subprocess.check_call(['osascript', '-e', script2])
+                return True
+            subprocess.check_call(['osascript', '-e', 'tell application "Finder" to open selection'])
+            return True
+        except Exception:
+            try:
+                subprocess.Popen(['open', path])
+                return True
+            except Exception:
+                return False
 
     def handle_search_query(self, query):
         search_term = query.lower()
@@ -4853,6 +6711,116 @@ class EnhancedJarvisGUI:
         except Exception as e:
             print(f"Error in take_screenshot: {e}")
             return f"Sorry, I couldn't take a screenshot. Error: {str(e)}"
+
+    def analyze_screen(self, question: str = None):
+        """
+        Capture screen, extract text via OCR, and analyze with AI.
+        
+        Args:
+            question: Optional specific question about the screen content
+        """
+        try:
+            self.add_to_chat("SAM", "🔍 Capturing and analyzing your screen...", "system")
+            
+            # Step 1: Capture screenshot
+            screenshot = pyautogui.screenshot()
+            
+            # Save for reference
+            screenshots_dir = "screenshots"
+            os.makedirs(screenshots_dir, exist_ok=True)
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filepath = os.path.join(screenshots_dir, f"analysis_{timestamp}.png")
+            screenshot.save(filepath)
+            
+            # Step 2: Extract text via OCR
+            ocr_text = ""
+            if OCR_AVAILABLE:
+                try:
+                    ocr_text = pytesseract.image_to_string(screenshot)
+                    ocr_text = ocr_text.strip()
+                except Exception as e:
+                    print(f"OCR Error: {e}")
+                    ocr_text = "(OCR unavailable - Tesseract may not be installed)"
+            else:
+                ocr_text = "(OCR not available - install pytesseract and Tesseract)"
+            
+            # Step 3: Analyze with AI (Gemini Vision if available)
+            ai_analysis = self._analyze_screenshot_with_ai(screenshot, question, ocr_text)
+            
+            # Build response
+            response_parts = ["📸 **Screen Analysis Results**\n"]
+            
+            if ocr_text and ocr_text != "(OCR unavailable - Tesseract may not be installed)" and ocr_text != "(OCR not available - install pytesseract and Tesseract)":
+                # Truncate OCR text if too long
+                display_ocr = ocr_text[:500] + "..." if len(ocr_text) > 500 else ocr_text
+                response_parts.append(f"📝 **Text Found on Screen:**\n```\n{display_ocr}\n```\n")
+            
+            if ai_analysis:
+                response_parts.append(f"🤖 **AI Analysis:**\n{ai_analysis}")
+            else:
+                response_parts.append("💡 *For better analysis, configure your Gemini API key in settings.*")
+            
+            response_parts.append(f"\n\n📁 Screenshot saved: `{filepath}`")
+            
+            return "\n".join(response_parts)
+            
+        except Exception as e:
+            print(f"Error in analyze_screen: {e}")
+            return f"❌ Screen analysis failed: {str(e)}"
+    
+    def _analyze_screenshot_with_ai(self, screenshot, question: str = None, ocr_text: str = ""):
+        """Send screenshot to Gemini Vision API for analysis."""
+        try:
+            from config.settings import API_KEYS
+            api_key = API_KEYS.get("gemini")
+            
+            if not api_key:
+                return None
+            
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            
+            # Build the prompt
+            if question:
+                prompt = f"Analyze this screenshot and answer: {question}"
+            else:
+                prompt = """Analyze this screenshot and provide:
+1. A brief description of what's visible on screen
+2. Key information or text content
+3. Any notable elements (apps, windows, content type)
+
+Be concise and helpful."""
+            
+            # Add OCR context if available
+            if ocr_text and len(ocr_text) > 10:
+                prompt += f"\n\nOCR extracted text for context:\n{ocr_text[:1000]}"
+            
+            # Convert PIL Image to bytes
+            import io
+            img_byte_arr = io.BytesIO()
+            screenshot.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+            
+            # Use Gemini Vision model
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content([
+                prompt,
+                {"mime_type": "image/png", "data": img_byte_arr}
+            ])
+            
+            return response.text
+            
+        except ImportError:
+            print("[INFO] google-generativeai not installed")
+            return None
+        except Exception as e:
+            print(f"AI analysis error: {e}")
+            return None
+    
+    def quick_screen_analysis(self):
+        """Quick action button handler for screen analysis."""
+        result = self.analyze_screen()
+        self.add_to_chat("SAM", result, "system")
 
     def handle_music_command(self):
         try:
@@ -4987,19 +6955,20 @@ Need help with something specific? Just ask!"""
 
     def voice_recognition_thread(self):
         try:
-            # Only use Google (online) speech recognition
-            with self.microphone as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
-            try:
-                text = self.recognizer.recognize_google(audio, language=self.sr_code)
+            text, err = self.voice_mgr.listen_once(timeout=5, phrase_time_limit=8)
+            if text:
                 self.root.after(0, lambda: self.process_voice_input(text))
-            except sr.UnknownValueError:
-                self.root.after(0, lambda: self.add_to_chat("System", "Could not understand audio. Please try again.", "error"))
-            except sr.RequestError as e:
-                self.root.after(0, lambda: self.add_to_chat("System", f"Could not request results; {e}", "error"))
-        except Exception as e:
-            self.root.after(0, lambda: self.add_to_chat("System", f"Voice recognition error: {str(e)}", "error"))
+            else:
+                if err == 'mic_unavailable':
+                    self.root.after(0, lambda: self.add_to_chat("System", "Microphone not available.", "error"))
+                elif err == 'network_error':
+                    self.root.after(0, lambda: self.add_to_chat("System", "Network error during transcription.", "error"))
+                elif err == 'no_speech':
+                    self.root.after(0, lambda: self.add_to_chat("System", "Could not understand audio. Please try again.", "warning"))
+                else:
+                    self.root.after(0, lambda: self.add_to_chat("System", "Voice recognition error.", "error"))
+        except Exception:
+            self.root.after(0, lambda: self.add_to_chat("System", "Voice recognition error.", "error"))
         finally:
             self.root.after(0, self.stop_listening)
 
@@ -5090,7 +7059,7 @@ Need help with something specific? Just ask!"""
             print(f"Error applying enhanced TTS settings: {e}")
     
     def _set_language_voice(self):
-        """Set the appropriate voice for the current language."""
+        """Set the appropriate voice for the current language (cross-platform)."""
         try:
             voices = self.tts_engine.getProperty('voices')
             if not voices:
@@ -5108,12 +7077,27 @@ Need help with something specific? Just ask!"""
                         print(f"Set voice to: {voice.name} for {current_lang}")
                         return
             
-            # Fallback: look for voices matching the language
-            lang_keywords = {
+            # Fallback: look for voices matching the language (platform-aware)
+            # Windows voices
+            windows_keywords = {
                 "Hindi": ["hindi", "hi-in", "hemant", "kalpana"],
                 "Telugu": ["telugu", "te-in", "chaitanya", "priya"],
-                "English": ["english", "en-us", "david", "zira"]
+                "English": ["english", "en-us", "david", "zira", "mark"]
             }
+            
+            # macOS voices (NSSpeechSynthesizer)
+            macos_keywords = {
+                "Hindi": ["hindi", "lekha"],
+                "Telugu": ["telugu"],
+                "English": ["samantha", "alex", "daniel", "karen", "moira", "tessa", "veena", "en-us", "en_us"]
+            }
+            
+            # Choose keywords based on platform
+            import platform as plat
+            if plat.system() == "Darwin":
+                lang_keywords = macos_keywords
+            else:
+                lang_keywords = windows_keywords
             
             target_keywords = lang_keywords.get(current_lang, [])
             for voice in voices:
@@ -5130,9 +7114,6 @@ Need help with something specific? Just ask!"""
             
         except Exception as e:
             print(f"Error setting language voice: {e}")
-                        
-        except Exception as e:
-            print(f"Error applying enhanced TTS settings: {e}")
 
     def stop_speech(self):
         """Stop speech playback."""
@@ -5148,10 +7129,91 @@ Need help with something specific? Just ask!"""
             print(f"Error stopping speech: {e}")
 
     def update_system_info(self):
-        """Legacy system info update - now handled by AnimatedSystemPanel."""
-        # This method is kept for compatibility but the actual updates
-        # are now handled by the AnimatedSystemPanel class
-        pass
+        """Update Core System UI with real-time system data."""
+        try:
+            # CPU usage
+            cpu_percent = psutil.cpu_percent(interval=None)
+            if hasattr(self, 'cpu_percent_label'):
+                self.cpu_percent_label.configure(text=f"{cpu_percent:.0f}%")
+            
+            # RAM usage
+            memory = psutil.virtual_memory()
+            ram_percent = memory.percent
+            ram_gb = memory.used / (1024**3)
+            if hasattr(self, 'ram_percent_label'):
+                self.ram_percent_label.configure(text=f"{ram_percent:.0f}%")
+            if hasattr(self, 'ram_usage_label'):
+                self.ram_usage_label.configure(text=f"RAM USAGE    {ram_gb:.1f} GB")
+            
+            # Update top processes
+            if hasattr(self, 'process_list_frame'):
+                self.update_top_processes()
+                
+        except Exception as e:
+            print(f"Error updating system info: {e}")
+        
+        # Schedule next update
+        if hasattr(self, 'root') and self.root.winfo_exists():
+            self.root.after(3000, self.update_system_info)
+    
+    def update_top_processes(self):
+        """Update the top processes list."""
+        try:
+            colors = THEMES.get(self.theme, THEMES["core_system"])
+            
+            # Clear existing processes
+            for widget in self.process_list_frame.winfo_children():
+                widget.destroy()
+            
+            # Get top processes by CPU
+            processes = []
+            for proc in psutil.process_iter(['name', 'cpu_percent', 'memory_percent']):
+                try:
+                    pinfo = proc.info
+                    if pinfo['cpu_percent'] is not None:
+                        processes.append(pinfo)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            
+            # Sort by CPU and take top 5
+            processes.sort(key=lambda x: x.get('cpu_percent', 0) or 0, reverse=True)
+            top_processes = processes[:5]
+            
+            for proc in top_processes:
+                name = proc.get('name', 'Unknown')[:20]
+                cpu = proc.get('cpu_percent', 0) or 0
+                mem = proc.get('memory_percent', 0) or 0
+                
+                row = ctk.CTkFrame(self.process_list_frame, fg_color="transparent")
+                row.pack(fill="x", pady=2)
+                
+                ctk.CTkLabel(
+                    row,
+                    text=name,
+                    font=("Consolas", 9),
+                    text_color=colors["fg"],
+                    anchor="w",
+                    width=120
+                ).pack(side="left")
+                
+                ctk.CTkLabel(
+                    row,
+                    text=f"{mem:.1f}%",
+                    font=("Consolas", 9),
+                    text_color=colors.get("progress_cyan", "#06b6d4"),
+                    width=40
+                ).pack(side="right")
+                
+                ctk.CTkLabel(
+                    row,
+                    text=f"{cpu:.1f}%",
+                    font=("Consolas", 9),
+                    text_color=colors.get("progress_orange", "#f97316"),
+                    width=40
+                ).pack(side="right")
+                
+        except Exception as e:
+            print(f"Error updating processes: {e}")
     
     def update_weather_display(self):
         """Update weather display in the system panel."""
@@ -5253,6 +7315,16 @@ Need help with something specific? Just ask!"""
         except Exception as e:
             print(f"Error in open_website: {e}")
             self.add_to_chat("System", f"Failed to open website: {str(e)}", "error")
+
+    def prompt_find_and_open(self):
+        try:
+            q = simpledialog.askstring("Find & Open", "Enter file name or part of it:", parent=self.root)
+            if not q:
+                return
+            result = self.open_file_human_like(q)
+            self.add_to_chat("SAM", result, "system")
+        except Exception as e:
+            self.add_to_chat("System", f"Failed: {e}", "error")
 
     def play_music_folder(self):
         try:
@@ -5622,7 +7694,7 @@ Created with ❤️ using Python and Tkinter
             content,
             text="Tip: On macOS, grant Accessibility permissions to Python for simulated input.",
             font=("Segoe UI", 10),
-            text_color=THEMES[self.theme]["muted"]
+            text_color=THEMES[self.theme]["subfg"]
         )
         hint.pack(anchor="w", pady=(6, 2))
         self.font_slider.pack(fill="x", pady=(5, 0))
@@ -6307,49 +8379,18 @@ Created with ❤️ using Python and Tkinter
         self.hotword_enabled = not self.hotword_enabled
         self.update_hotword_btn_state()
         if self.hotword_enabled:
-            self.add_to_chat("System", "Hotword detection enabled. Say 'sam' to activate.", "system")
-            self.start_hotword_thread()
+            try:
+                if self.microphone and self.recognizer:
+                    with self.microphone as src:
+                        self.recognizer.adjust_for_ambient_noise(src, duration=1)
+                        self.recognizer.dynamic_energy_threshold = True
+                self.add_to_chat("System", "Hotword detection enabled. Say 'sam' to activate.", "system")
+            except Exception:
+                self.add_to_chat("System", "Hotword detection enabled.", "system")
+            self.hotword_engine.start()
         else:
             self.add_to_chat("System", "Hotword detection disabled.", "system")
-
-    def start_hotword_thread(self):
-        if self.hotword_thread and self.hotword_thread.is_alive():
-            return
-        self.hotword_thread = threading.Thread(target=self.hotword_listener, daemon=True)
-        self.hotword_thread.start()
-
-    def hotword_listener(self):
-        recognizer = sr.Recognizer()
-        missed_count = 0
-        while self.hotword_enabled:
-            try:
-                with self.microphone as source:
-                    recognizer.adjust_for_ambient_noise(source, duration=0.3)
-                    audio = recognizer.listen(source, timeout=4, phrase_time_limit=3)
-                try:
-                    text = recognizer.recognize_google(audio, language=self.sr_code)
-                    # --- Multiple hotwords support ---
-                    if any(hw in text.strip().lower() for hw in self.hotwords):
-                        self.root.after(0, self.on_hotword_detected)
-                        missed_count = 0
-                        # Wait until listening is done before resuming hotword detection
-                        while self.is_listening and self.hotword_enabled:
-                            time.sleep(0.5)
-                    else:
-                        missed_count += 1
-                        if missed_count >= 3:
-                            self.root.after(0, lambda: self.add_to_chat("System", f"Didn't catch any hotword. Please say one of: {', '.join(self.hotwords)}", "warning"))
-                            missed_count = 0
-                except sr.UnknownValueError:
-                    missed_count += 1
-                    if missed_count >= 3:
-                        self.root.after(0, lambda: self.add_to_chat("System", f"Didn't catch any hotword. Please say one of: {', '.join(self.hotwords)}", "warning"))
-                        missed_count = 0
-                    continue
-                except sr.RequestError:
-                    continue
-            except Exception:
-                continue
+        
 
     def on_hotword_detected(self):
         self.update_hotword_btn_state()
@@ -6394,6 +8435,12 @@ Created with ❤️ using Python and Tkinter
             # Stop hotword detection
             if hasattr(self, 'hotword_detection'):
                 self.hotword_detection = False
+            
+            # Stop system tray and hotkeys
+            try:
+                self._stop_tray_and_hotkeys()
+            except:
+                pass
             
             # Stop speech and clean up audio files
             try:
@@ -6865,6 +8912,7 @@ Try asking for one of these specific topics, or ask me to explain any of these c
                 latest_profile = max(profile_files, key=os.path.getctime)
                 with open(latest_profile, 'r') as f:
                     profile_data = json.load(f)
+                    self.profile_data = profile_data
                     self.username = profile_data.get('username', 'Default')
                     self.profile_picture_path = profile_data.get('profile_picture', None)
                     
@@ -6893,6 +8941,7 @@ Try asking for one of these specific topics, or ask me to explain any of these c
                     # Automation settings
                     if 'automation_strategy' in profile_data:
                         self.automation_strategy = profile_data.get('automation_strategy', 'direct')
+                    self.profile_memory = profile_data.get('memory', {})
                     
                     # Update Gmail status if UI is available
                     if hasattr(self, 'update_gmail_status'):
@@ -6929,7 +8978,8 @@ Try asking for one of these specific topics, or ask me to explain any of these c
             'planner_enabled': getattr(self, 'planner_enabled', True),
             'planning_strategy': getattr(self, 'planning_strategy', 'simple'),
             'automation_strategy': getattr(self, 'automation_strategy', 'direct'),
-            'last_updated': datetime.datetime.now().isoformat()
+            'last_updated': datetime.datetime.now().isoformat(),
+            'memory': (self.memory_manager.save() if hasattr(self, 'memory_manager') else getattr(self, 'profile_memory', {}))
         }
         try:
             # Clean username for filename
@@ -8556,6 +10606,219 @@ def resource_path(relative_path):
         print(f"Warning: Resource file not found: {full_path}")
         return relative_path  # Return original path as fallback
     return full_path
+
+class SystemNavigationService:
+    def __init__(self):
+        self.bundle_cache = {
+            'safari': 'com.apple.Safari',
+            'chrome': 'com.google.Chrome',
+            'terminal': 'com.apple.Terminal',
+            'finder': 'com.apple.finder',
+            'notes': 'com.apple.Notes',
+            'system settings': 'com.apple.systempreferences',
+        }
+        self.pane_map = {
+            'display': 'x-apple.systempreferences:com.apple.preference.displays',
+            'sound': 'x-apple.systempreferences:com.apple.preference.sound',
+            'wifi': 'x-apple.systempreferences:com.apple.preference.network',
+            'network': 'x-apple.systempreferences:com.apple.preference.network',
+            'bluetooth': 'x-apple.systempreferences:com.apple.preference.bluetooth',
+            'battery': 'x-apple.systempreferences:com.apple.preference.battery',
+            'keyboard': 'x-apple.systempreferences:com.apple.preference.keyboard',
+            'trackpad': 'x-apple.systempreferences:com.apple.preference.trackpad',
+            'mouse': 'x-apple.systempreferences:com.apple.preference.mouse',
+            'privacy': 'x-apple.systempreferences:com.apple.preference.security',
+        }
+
+    def open_settings(self, section=None):
+        try:
+            if section and section in self.pane_map:
+                subprocess.run(['open', self.pane_map[section]], check=False)
+            else:
+                subprocess.run(['open', '-a', 'System Settings'], check=False)
+            subprocess.run(['osascript', '-e', 'tell application "System Settings" to activate'], check=False)
+            return f"⚙️ Opening System Settings{(' → ' + section) if section else ''}"
+        except Exception as e:
+            try:
+                subprocess.Popen(['open', '/System/Applications/System Settings.app'])
+                return "⚙️ Opening System Settings"
+            except Exception:
+                return f"❌ Failed to open System Settings: {e}"
+
+    def open_app(self, app_name):
+        try:
+            key = app_name.strip().lower()
+            bid = self.bundle_cache.get(key)
+            if bid:
+                subprocess.run(['open', '-b', bid], check=False)
+            else:
+                subprocess.run(['open', '-a', app_name], check=False)
+            subprocess.run(['osascript', '-e', f'tell application "{app_name}" to activate'], check=False)
+            return f"🚀 Opening {app_name}"
+        except Exception as e:
+            return f"❌ Failed to open {app_name}: {e}"
+
+    def open_folder(self, name):
+        try:
+            n = name.strip()
+            home = os.path.expanduser('~')
+            known = {
+                'downloads': os.path.join(home, 'Downloads'),
+                'documents': os.path.join(home, 'Documents'),
+                'desktop': os.path.join(home, 'Desktop'),
+                'pictures': os.path.join(home, 'Pictures'),
+                'music': os.path.join(home, 'Music'),
+                'videos': os.path.join(home, 'Videos'),
+            }
+            path = known.get(n.lower())
+            if not path:
+                path = os.path.expanduser(n)
+            if os.path.isdir(path):
+                subprocess.run(['open', path], check=False)
+                return f"📁 Opening '{os.path.basename(path)}'"
+            return f"❌ Folder not found: {name}"
+        except Exception as e:
+            return f"❌ Failed to open folder '{name}': {e}"
+
+ 
+class VoiceInputManager:
+    def __init__(self, app):
+        self.app = app
+        self.recognizer = app.recognizer
+        self.microphone = app.microphone
+        self.language = getattr(app, 'sr_code', 'en-US')
+        self.vad_available = False
+        try:
+            import webrtcvad  # optional
+            self.vad = webrtcvad.Vad(2)
+            self.vad_available = True
+        except Exception:
+            self.vad = None
+
+    def listen_once(self, timeout=5, phrase_time_limit=8):
+        if not self.microphone:
+            return None, 'mic_unavailable'
+        try:
+            with self.microphone as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit)
+            try:
+                # offline fallback via vosk if available
+                text = None
+                try:
+                    import vosk  # optional
+                    text = None  # placeholder: full integration can be added later
+                except Exception:
+                    pass
+                if not text:
+                    text = self.recognizer.recognize_google(audio, language=self.language)
+                return text, None
+            except sr.UnknownValueError:
+                return None, 'no_speech'
+            except sr.RequestError:
+                return None, 'network_error'
+        except Exception:
+            return None, 'listen_error'
+
+class HotwordEngine:
+    def __init__(self, app):
+        self.app = app
+        self.enabled = False
+        self.thread = None
+        self.last_trigger = 0
+        self.detector_available = False
+        self.hotwords = getattr(app, 'hotwords', ["sam"])
+        try:
+            import openwakeword  # optional
+            self.detector_available = True
+        except Exception:
+            self.detector_available = False
+
+    def start(self):
+        if self.thread and self.thread.is_alive():
+            return
+        self.enabled = True
+        self.thread = threading.Thread(target=self._loop, daemon=True)
+        self.thread.start()
+
+    def stop(self):
+        self.enabled = False
+
+    def _loop(self):
+        recognizer = self.app.recognizer
+        mic = self.app.microphone
+        missed = 0
+        while self.enabled:
+            try:
+                with mic as source:
+                    audio = recognizer.listen(source, timeout=4, phrase_time_limit=2)
+                try:
+                    text = recognizer.recognize_google(audio, language=self.app.sr_code)
+                    if text and any(hw in text.lower() for hw in self.hotwords):
+                        now = time.time()
+                        if now - self.last_trigger > 1.0:
+                            self.last_trigger = now
+                            self.app.root.after(0, self.app.on_hotword_detected)
+                            while self.app.is_listening and self.enabled:
+                                time.sleep(0.2)
+                        missed = 0
+                    else:
+                        missed += 1
+                except Exception:
+                    missed += 1
+            except Exception:
+                time.sleep(0.3)
+
+class WindowManager:
+    def focus(self, app_name):
+        try:
+            subprocess.run(['osascript', '-e', f'tell application "{app_name}" to activate'], check=False)
+            return f"🔲 Focused {app_name}"
+        except Exception as e:
+            return f"❌ Focus failed: {e}"
+
+    def maximize(self, app_name):
+        try:
+            script = (
+                f'tell application "System Events" to tell process "{app_name}" '
+                'to set value of attribute "AXFullScreen" of window 1 to true'
+            )
+            subprocess.run(['osascript', '-e', script], check=False)
+            return f"🟦 Maximized {app_name}"
+        except Exception as e:
+            return f"❌ Maximize failed: {e}"
+
+    def minimize(self, app_name):
+        try:
+            script = (
+                f'tell application "System Events" to tell process "{app_name}" '
+                'to set value of attribute "AXMinimized" of window 1 to true'
+            )
+            subprocess.run(['osascript', '-e', script], check=False)
+            return f"🟨 Minimized {app_name}"
+        except Exception as e:
+            return f"❌ Minimize failed: {e}"
+
+    def snap(self, app_name, side='left'):
+        try:
+            # Simple snap using half-screen size; can be refined with screen bounds
+            bounds = subprocess.check_output(['osascript', '-e', 'tell application "Finder" to get bounds of window 1'], text=True).strip()
+            # Fallback to default resolution halves
+            x, y, w, h = 0, 0, 1440, 900
+            if side == 'left':
+                pos = '{0,0}'; size = '{720,900}'
+            else:
+                pos = '{720,0}'; size = '{720,900}'
+            script = (
+                f'tell application "System Events" to tell process "{app_name}" '
+                f'to set position of window 1 to {pos}\n'
+                f'tell application "System Events" to tell process "{app_name}" '
+                f'to set size of window 1 to {size}'
+            )
+            subprocess.run(['osascript', '-e', script], check=False)
+            return f"🧭 Snapped {app_name} {side}"
+        except Exception as e:
+            return f"❌ Snap failed: {e}"
 
 if __name__ == "__main__":
     app = EnhancedJarvisGUI()

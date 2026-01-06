@@ -1,0 +1,69 @@
+[
+  {
+    "id": 0,
+    "timestamp": "2026-01-04T19:16:34.675852",
+    "preview": "hey...",
+    "messages": [
+      {
+        "timestamp": "19:15",
+        "sender": "SAM",
+        "message": "Hello! I'm SAM, your AI assistant. How can I help you today?",
+        "type": "info"
+      },
+      {
+        "timestamp": "19:15",
+        "sender": "User",
+        "message": "hey",
+        "type": "user"
+      },
+      {
+        "timestamp": "19:15",
+        "sender": "SAM",
+        "message": "Hey there! 😊 What’s up? How’s your day going so far? Anything fun or interesting happening, or just here to chat? Let me know how I can brighten your day! ✨",
+        "type": "jarvis"
+      },
+      {
+        "timestamp": "19:15",
+        "sender": "User",
+        "message": "open yt",
+        "type": "user"
+      },
+      {
+        "timestamp": "19:16",
+        "sender": "SAM",
+        "message": "📺 YouTube opened via keyboard typing.",
+        "type": "system"
+      },
+      {
+        "timestamp": "19:16",
+        "sender": "SAM",
+        "message": "✅ 📺 YouTube opened via keyboard typing.",
+        "type": "jarvis"
+      },
+      {
+        "timestamp": "19:16",
+        "sender": "User",
+        "message": "open youtube",
+        "type": "user"
+      },
+      {
+        "timestamp": "19:16",
+        "sender": "SAM",
+        "message": "📺 YouTube opened via keyboard typing.",
+        "type": "system"
+      },
+      {
+        "timestamp": "19:16",
+        "sender": "SAM",
+        "message": "✅ 📺 YouTube opened via keyboard typing.",
+        "type": "jarvis"
+      },
+      {
+        "timestamp": "19:16",
+        "sender": "System",
+        "message": "Switched to user: DAV",
+        "type": "system"
+      }
+    ]
+  }
+]

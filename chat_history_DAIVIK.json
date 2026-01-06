@@ -1,0 +1,21 @@
+[
+  {
+    "id": 0,
+    "timestamp": "2026-01-04T19:05:44.194392",
+    "preview": "Switched to user: DAIVIK...",
+    "messages": [
+      {
+        "timestamp": "19:05",
+        "sender": "SAM",
+        "message": "Hello! I'm SAM, your AI assistant. How can I help you today?",
+        "type": "info"
+      },
+      {
+        "timestamp": "19:05",
+        "sender": "System",
+        "message": "Switched to user: DAIVIK",
+        "type": "system"
+      }
+    ]
+  }
+]
